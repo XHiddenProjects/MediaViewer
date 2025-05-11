@@ -1,4 +1,4 @@
-import {startup, VideoPlayer} from '../js/mediaviewer.js';
+import {startup, VideoPlayer} from '../js/es6/mediaviewer.js';
 startup();
 const tracks = [{
     src:'tracks/chapters.vtt',
@@ -26,7 +26,7 @@ src = [{
     quality: 1080,
     path: 'videos/demo_1080p.mp4'
 }];
-new VideoPlayer('.video',{
+new VideoPlayer('.demo',{
     controls: true,
     loop: true,
     tracks: tracks,
