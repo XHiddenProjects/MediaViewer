@@ -41,8 +41,8 @@ export class Carousel{
     #callback;
     /**
      * Creates a carousel
-     * @param {HTMLDivElement} container Container to create the carousel in
-     * @param {{speed: number, interval:number, autoplay:boolean, loop:boolean, slides: string[], start: number, controls: boolean, indicator: boolean, transition: 'slide'|'fade'|'none'}} config Carousel configuration
+     * @param {String} container Container to create the carousel in
+     * @param {{speed: number, interval:number, autoplay:boolean, loop:boolean, slides: string[], captions: [], start: number, controls: boolean, indicator: boolean, transition: 'slide'|'fade'|'none'}} config Carousel configuration
      * @param {{}} styles Carousel styles 
      * @param {boolean} [trigger=true] Active the event
      */
@@ -239,10 +239,9 @@ export class Carousel{
     }
 };
 export class Gallery{
-    #callback;
     /**
      * Creates an image gallery
-     * @param {HTMLDivElement} container Container element
+     * @param {String} container Container element
      * @param {{images: string[], captions: string[], zoom: boolean, gap: string, autoResize: boolean, static: boolean}} config 
      * @param {{}} styles Style configuration
      * @param {boolean} [trigger=true] Active the event
@@ -264,7 +263,6 @@ export class Gallery{
             'gap': this.config.gap
         };
         this.interval = null;
-        this.#callback = null;
         Object.assign(this.config, config);
         Object.assign(this.styles, styles);
         this.loadImages().then(() => {
@@ -358,8 +356,8 @@ export class VideoPlayer{
     #videoList;
     /**
      * Generate a new video element
-     * @param {HTMLDivElement} container 
-     * @param {{poster: string, autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, end: number, skipRate: number}} config Configurations
+     * @param {String} container 
+     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, end: number, skipRate: number}} config Configurations
      * @param {{}} styles Style configuration
      * @returns {Video} return the video element
      * @param {boolean} [trigger=true] Active the event
@@ -371,8 +369,6 @@ export class VideoPlayer{
         this.container = document.querySelector(container);
         this.config = {
             embed: false,
-            poster: '',
-            title: '',
             autoplay: false,
             controls: true,
             start:  (this.params.get('t') ? parseInt(this.params.get('t')) : 0),
@@ -507,7 +503,12 @@ export class VideoPlayer{
                 }).join('')
             }
         </div>`;
-        this.container.innerHTML+=`<div class="video-title"><h1>${this.config.title}</h1></div>`;
+        const videoID = new URLSearchParams(window.location.search).get('v');
+        const playlistItem = this.config.playlists.find(item => 
+            this.#videoList.some(video => video.videoID === videoID && fileName(item.src[0].path) === video.videoName)
+        );
+        const title = playlistItem ? playlistItem.title : this.config.title;
+        this.container.innerHTML+=`<div class="video-title"><h1>${title}</h1></div>`;
         this.#createVideoFrame();
         if(this.config.controls){
             this.#createControls();
@@ -722,7 +723,11 @@ export class VideoPlayer{
                 source.src = src['path'];
                 source.setAttribute('data-quality', src['quality']??'auto');
                 source.type = this.#getVideoType(src['path']);
-                video.poster = this.config.poster;
+                const currentVideoID = new URLSearchParams(window.location.search).get('v');
+                const currentPlaylist = this.config.playlists.find(playlist => 
+                    this.#videoList.some(video => video.videoID === currentVideoID && fileName(playlist.src[0].path) === video.videoName)
+                );
+                video.poster = currentPlaylist ? currentPlaylist.poster : this.config.poster;
                 if(src['quality']==='auto') video.src = src['path'];
                 video.appendChild(source);
             });
@@ -1752,7 +1757,7 @@ export class AudioPlayer{
     #playlistsDurations = {};
     /**
      * Creates an Audio player
-     * @param {HTMLDivElement} container Container to load the player
+     * @param {String} container Container to load the player
      * @param {{controls: Boolean, skipRate: Number, autoplay: Boolean, loop: Boolean, shuffle: Boolean, preloaded: 'auto'|'metadata'|'none', playlists:[...src:[{img: String, path: String, title: String, artist: String, album: String}], tracks: [...{src: string, kind: string, srclang: string, label: string}]]}} config 
      * @param {{}} styles Styles
      * @param {boolean} [trigger=true] Active the event
