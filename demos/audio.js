@@ -1,6 +1,6 @@
-import { startup, AudioPlayer} from "../js/mediaviewer.js";
+import { startup, AudioPlayer} from "../js/es6/mediaviewer.js";
 startup();
-new AudioPlayer('.audio',{
+new AudioPlayer('.demo',{
     autoplay: false,
     loop: false,
     shuffle: false,
