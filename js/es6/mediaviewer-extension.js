@@ -1,4 +1,13 @@
 /**
+ * @package MediaViewer
+ * @version 1.0.0
+ * @description A javascript library to create a media viewing experience
+ * @license MIT
+ * @author XHiddenProjects
+ * @repository [XHiddenProjects/MediaViewer](https://github.com/XHiddenProjects/MediaViewer)
+ */
+
+/**
  * Creates a configuration class
  */
 export class Config{
