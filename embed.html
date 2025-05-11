@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title></title>
+        <style>
+            *{
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            html{
+                overflow: hidden;
+            }
+            html,body{
+                width: 100%; 
+                height: 100%;
+            }
+        </style>
+        <link rel="stylesheet" href="./css/mediaviewer.css"/>
+        <link rel="stylesheet" href="./css/mediaviewer-mobile.css"/>
+    </head>
+    <body>
+        <div class="embed"></div>
+        <script type="module">
+            import {startup, VideoPlayer} from './js/es6/mediaviewer.js';
+            import {resizeEmbed} from './js/es6/mediaviewer-tools.js';
+        const videoID = new URLSearchParams(window.location.search),
+        data = JSON.parse(localStorage.getItem(`embed_${videoID.get('v')}`));
+        if(!data) throw new Error('[MediaViewer]: Embed code is not found');
+        startup();
+
+        new VideoPlayer('.embed',{
+            embed: true,
+            poster: '',
+            playlists:[data['playlists'][0]],
+            controls: true,
+            loop: true,
+            tracks: data['playlists'][0]['tracks']
+        });
+        resizeEmbed();
+        </script>
+    </body>
+</html>
