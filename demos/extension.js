@@ -6,7 +6,7 @@ export const Demo = class extends Extension{
         super(container,new Config().parse(config), new Styles().parse(styles));
     }
 }
-const x = new Demo(['.test','.test1'],{
+const x = new Demo(['.demo','.demo1'],{
     VideoPlayer:{
         controls: true,
         loop: true,
