@@ -20,10 +20,11 @@ These are requirements that will be injected into your website
 * [css/mediaviewer-mobile.css](https://github.com/XHiddenProjects/MediaViewer/blob/master/css/mediaviewer-mobile.css)
 
 ## Support
-| JS | Supported |
-| -- | --------- |
-| ES6 | ✔️       |
-| React | ✖️      |
-| Vue.js | ✖️      |
-| Angular | ✖️      |
-| Express.js | ✖️      |
+| JS         | Supported  |
+| --         | ---------  |
+| ES6        | ✔️         |
+| jQuery     | ✖️         |
+| React      | ✖️         |
+| Vue.js     | ✖️         |
+| Angular    | ✖️         |
+| Express.js | ✖️         |
