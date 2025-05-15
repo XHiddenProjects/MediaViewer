@@ -1,4 +1,4 @@
-import { clipboard, color, videoData, genID, fileName, GenerateQRCode} from "./mediaviewer-tools.js";
+import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
  * @version 1.0.0
@@ -357,7 +357,7 @@ export class VideoPlayer{
     /**
      * Generate a new video element
      * @param {String} container 
-     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, end: number, skipRate: number}} config Configurations
+     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, skipRate: number, embed: boolean}} config Configurations
      * @param {{}} styles Style configuration
      * @returns {Video} return the video element
      * @param {boolean} [trigger=true] Active the event
@@ -372,7 +372,6 @@ export class VideoPlayer{
             autoplay: false,
             controls: true,
             start:  (this.params.get('t') ? parseInt(this.params.get('t')) : 0),
-            end: -1,
             playlists: [],
             skipRate: 5,
             defaultLang: 'en',
@@ -431,18 +430,13 @@ export class VideoPlayer{
             i+=1;
             
             setTimeout(() => {
-                const x = new URLSearchParams(window.location.search);
-                if(!x.get('v')) {
-                    const separator = window.location.search ? '&' : '?';
-                    window.history.pushState({}, '', `${window.location.pathname}${separator}v=${this.#videoList[0].videoID}`);
-                }
                 e.poster = posterURL;
                 e.duration = videoDuration;
                 
                 if(i==this.config.playlists.length){
                     if(this.container instanceof HTMLElement&&trigger) this.init();
                 }
-            }, 500);
+            }, 200);
         });
         
         return this;
@@ -503,7 +497,16 @@ export class VideoPlayer{
                 }).join('')
             }
         </div>`;
-        const videoID = new URLSearchParams(window.location.search).get('v');
+        let videoID = new URLSearchParams(window.location.search).get('v');
+        if (!videoID && this.config.playlists.length > 0) {
+            videoID = this.#videoList[0]?.videoID;
+            const separator = window.location.href.includes('?') ? '&' : '?';
+            const newUrl = `${window.location.href}${separator}v=${videoID}`;
+            window.history.pushState({}, '', newUrl);
+        }
+        
+
+
         const playlistItem = this.config.playlists.find(item => 
             this.#videoList.some(video => video.videoID === videoID && fileName(item.src[0].path) === video.videoName)
         );
@@ -1798,18 +1801,22 @@ export class AudioPlayer{
 
 
         setTimeout(()=>{
-            const x = new URLSearchParams(window.location.search);
-            if(!x.get('a')) {
-                const separator = window.location.search ? '&' : '?';
-                window.history.pushState({}, '', `${window.location.pathname}${separator}a=${Object.values(this.audioID)[0]}`);
-            }
-            if(this.container instanceof HTMLElement&&trigger) this.init();
-            if(this.config.controls){
-                this.#createVolumeBtn();
-                this.#createVolume();
-                this.#pausePlay();
-                this.#events();
-                this.#load();
+            if(Object.keys(this.audioID).length > 0){
+                const urlParams = new URLSearchParams(window.location.search);
+                if (!urlParams.has('a')) {
+                    const separator = urlParams.toString() ? '&' : '?';
+                    const newUrl = `${window.location.pathname}${separator}a=${Object.values(this.audioID)[0]}${urlParams.has('v') ? `&v=${urlParams.get('v')}` : ''}`;
+                    window.history.pushState({}, '', newUrl);
+                }
+
+                if(this.container instanceof HTMLElement&&trigger) this.init();
+                if(this.config.controls){
+                    this.#createVolumeBtn();
+                    this.#createVolume();
+                    this.#pausePlay();
+                    this.#events();
+                    this.#load();
+                }
             }
         },200);
     }
@@ -2283,3 +2290,7 @@ export class AudioPlayer{
         },300);
     }
 }
+
+
+//Finalize the URL
+finalizeURL();

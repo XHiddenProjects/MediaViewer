@@ -434,3 +434,24 @@ export const GenerateQRCode = (element,options)=>{
         }
     },500);
 }
+
+export const finalizeURL = () => {
+    window.addEventListener('load',()=>{
+        setTimeout(()=>{
+            let currentURL = new URL(window.location.href);
+            const requiredPattern = new RegExp(`${window.location.origin}${window.location.pathname}\\?.*`); // Adjust the pattern as needed
+            if (!requiredPattern.test(currentURL.href)) {
+                currentURL = new URL(window.location.href.replace('&', '?'));
+                const params = new URLSearchParams(currentURL.search);
+                console.log(currentURL);
+                params.set('a', params.get('a'));
+                params.set('v', params.get('v'));
+                const correctedURL = `${currentURL.origin}${currentURL.pathname.replace(/\/&.*/,'')}?${params.toString()}`;
+                history.pushState(null, '', correctedURL);
+                window.location.reload();
+            }
+        },200);
+    });
+    
+    
+};
