@@ -441,7 +441,7 @@ export const finalizeURL = () => {
             let currentURL = new URL(window.location.href);
             const requiredPattern = new RegExp(`${window.location.origin}${window.location.pathname}\\?.*`); // Adjust the pattern as needed
             if (!requiredPattern.test(currentURL.href)) {
-                currentURL = new URL(window.location.href.replace('&', '?'));
+                currentURL = new URL(window.location.href.replace(/&/g, '?'));
                 const params = new URLSearchParams(currentURL.search);
                 console.log(currentURL);
                 params.set('a', params.get('a'));
