@@ -445,10 +445,16 @@ export const finalizeURL = () => {
                 const searchParams = currentURL.href.match(/\/(\?|\&).+/)[0].trim().replace(/^\//,'');
                 if (searchParams.startsWith('&')) currentURL.search = '?' + searchParams.slice(1);
                 const params = new URLSearchParams(currentURL.search);
-                console.log(currentURL);
                 params.set('a', params.get('a'));
                 params.set('v', params.get('v'));
-                const correctedURL = `${currentURL.origin}${currentURL.pathname.replace(/\/&.*/,'')}?${params.toString()}`;
+                const allParams = {};
+                for (const [key, value] of params.entries()) {
+                    allParams[key] = value;
+                }
+                const paramsString = Object.entries(allParams)
+                    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+                    .join('&');
+                const correctedURL = `${currentURL.origin}${currentURL.pathname.replace(/\/&.*/,'')}?${paramsString}`;
                 history.pushState(null, '', correctedURL);
                 window.location.reload();
             }
