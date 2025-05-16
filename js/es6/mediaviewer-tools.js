@@ -439,9 +439,11 @@ export const finalizeURL = () => {
     window.addEventListener('load',()=>{
         setTimeout(()=>{
             let currentURL = new URL(window.location.href);
-            const requiredPattern = new RegExp(`${window.location.origin}${window.location.pathname}\\?.*`); // Adjust the pattern as needed
+            const requiredPattern = new RegExp(`${window.location.origin}${window.location.pathname}\\?.*`);
             if (!requiredPattern.test(currentURL.href)) {
-                currentURL = new URL(window.location.href.replace(/&/, '?'));
+                currentURL = new URL(window.location.href);
+                const searchParams = currentURL.href.match(/\/(\?|\&).+/)[0].trim().replace(/^\//,'');
+                if (searchParams.startsWith('&')) currentURL.search = '?' + searchParams.slice(1);
                 const params = new URLSearchParams(currentURL.search);
                 console.log(currentURL);
                 params.set('a', params.get('a'));
