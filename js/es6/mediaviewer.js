@@ -501,7 +501,9 @@ export class VideoPlayer{
         if (!videoID && this.config.playlists.length > 0) {
             videoID = this.#videoList[0]?.videoID;
             const separator = window.location.href.includes('?') ? '&' : '?';
-            const newUrl = `${window.location.href}${separator}v=${videoID}`;
+            const url = new URL(window.location.href);
+            url.searchParams.set('v', videoID);
+            const newUrl = url.pathname + url.search;
             window.history.pushState({}, '', newUrl);
         }
         
@@ -1805,7 +1807,9 @@ export class AudioPlayer{
                 const urlParams = new URLSearchParams(window.location.search);
                 if (!urlParams.has('a')) {
                     const separator = urlParams.toString() ? '&' : '?';
-                    const newUrl = `${window.location.pathname}${separator}a=${Object.values(this.audioID)[0]}${urlParams.has('v') ? `&v=${urlParams.get('v')}` : ''}`;
+                    // Preserve all existing parameters, update/add 'a', and keep 'v' if present
+                    urlParams.set('a', Object.values(this.audioID)[0]);
+                    const newUrl = `${window.location.pathname}?${urlParams.toString()}`;
                     window.history.pushState({}, '', newUrl);
                 }
 
