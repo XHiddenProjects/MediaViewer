@@ -434,7 +434,9 @@ export const GenerateQRCode = (element,options)=>{
         }
     },500);
 }
-
+/**
+ * Finalizes and sanitizes the URL in the browser.
+ */
 export const finalizeURL = () => {
     window.addEventListener('load',()=>{
         setTimeout(()=>{
@@ -442,24 +444,24 @@ export const finalizeURL = () => {
             const requiredPattern = new RegExp(`${window.location.origin}${window.location.pathname}\\?.*`);
             if (!requiredPattern.test(currentURL.href)) {
                 currentURL = new URL(window.location.href);
-                const searchParams = currentURL.href.match(/\/(\?|\&).+/)[0].trim().replace(/^\//,'');
-                if (searchParams.startsWith('&')) currentURL.search = '?' + searchParams.slice(1);
-                const params = new URLSearchParams(currentURL.search);
-                params.set('a', params.get('a'));
-                params.set('v', params.get('v'));
-                const allParams = {};
-                for (const [key, value] of params.entries()) {
-                    allParams[key] = value;
+                if(currentURL.href.match(/\/(\?|\&).+/)){
+                    const searchParams = currentURL.href.match(/\/(\?|\&).+/)[0].trim().replace(/^\//,'');
+                    if (searchParams.startsWith('&')) currentURL.search = '?' + searchParams.slice(1);
+                    const params = new URLSearchParams(currentURL.search);
+                    params.set('a', params.get('a'));
+                    params.set('v', params.get('v'));
+                    const allParams = {};
+                    for (const [key, value] of params.entries()) {
+                        allParams[key] = value;
+                    }
+                    const paramsString = Object.entries(allParams)
+                        .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+                        .join('&');
+                    const correctedURL = `${currentURL.origin}${currentURL.pathname.replace(/\/&.*/,'')}?${paramsString}`;
+                    history.pushState(null, '', correctedURL);
+                    window.location.reload();
                 }
-                const paramsString = Object.entries(allParams)
-                    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
-                    .join('&');
-                const correctedURL = `${currentURL.origin}${currentURL.pathname.replace(/\/&.*/,'')}?${paramsString}`;
-                history.pushState(null, '', correctedURL);
-                window.location.reload();
             }
         },200);
     });
-    
-    
 };
