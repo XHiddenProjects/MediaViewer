@@ -9,4 +9,4 @@ Here is the supported versions for security management
 
 ## Reporting a Vulnerability
 
-To report an security risk, go to _issues > "new issues" > "report security risk"_
+To report an security risk, go to _issues > "new issues" > "create blank issue" > make sure label says "secuirty"_
