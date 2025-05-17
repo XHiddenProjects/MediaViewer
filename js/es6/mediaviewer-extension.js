@@ -1,6 +1,6 @@
 /**
  * @package MediaViewer
- * @version 1.0.0
+ * @version 1.0.3
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -334,5 +334,18 @@ export class Extension{
         }
         return [container, this.config.config[x.name] ?? {}, this.styles.styles[x.name] ?? {}, true];
     }
+    /**
+     * Returns the configuration object
+     * @returns {JSON} Configuration
+     */
+    getConfig(){
+        return this.config.config;
+    }
+    /**
+     * Returns the styles object
+     * @returns {JSON} Styles
+     */
+    getStyles(){
+        return this.styles.styles;
+    }
 }
-

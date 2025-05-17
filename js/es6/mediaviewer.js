@@ -1,7 +1,7 @@
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.0.0
+ * @version 1.0.3
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
