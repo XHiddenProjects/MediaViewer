@@ -249,7 +249,6 @@ export class Gallery{
     constructor(container, config, styles, trigger=true){
         if(!isLoaded()) return;
         this.container = document.querySelector(container);
-        this.container.classList.add('gallery');
         this.config = {
             images: [],
             captions: [],
@@ -286,6 +285,7 @@ export class Gallery{
         this.styles['max-cols'] = `${maxCols}`;
     }
     init(){
+        this.container.classList.add('gallery');
         if(this.config.images.length>this.config.rows*this.config.cols)  return;
         Object.keys(this.styles).forEach(i=>{
             this.container.style.setProperty(`--gallery-${i}`,this.styles[i]);
@@ -402,7 +402,9 @@ export class VideoPlayer{
             genID(fileName(i.src[0].path)).then((id)=>{
                 videoID = id;
             });
+            
             setTimeout(()=>{
+
                 if(!this.#videoList.some(item=>item.videoName===fileName(i.src[0].path))){
                     this.#videoList.push({
                         videoName: fileName(i.src[0].path),
@@ -415,30 +417,28 @@ export class VideoPlayer{
 
 
         
-        let i=0;
-        this.config.playlists.map((e)=>{
-            var posterURL='',
-            videoDuration=0;
-            if(e.poster===''){
-                videoData(e.src[0]['path'], 1, (p) => {
-                    if (p && p.poster && p.duration) {
-                        posterURL = p.poster;
-                        videoDuration = p.duration;
-                    }
-                });
-            }
-            i+=1;
-            
-            setTimeout(() => {
-                e.poster = posterURL;
-                e.duration = videoDuration;
-                
-                if(i==this.config.playlists.length){
-                    if(this.container instanceof HTMLElement&&trigger) this.init();
+        // Generate poster screenshots for all playlists before calling init
+        const posterPromises = this.config.playlists.map((e) => {
+            return new Promise((resolve) => {
+                if (typeof e.poster === 'string' && e.poster.trim() !== '') {
+                    // Poster already set, skip screenshot generation
+                    resolve();
+                } else {
+                    videoData(e.src[0]['path'], 1, (p) => {
+                        if (p && p.poster && p.duration) {
+                            e.poster = p.poster;
+                            e.duration = p.duration;
+                        }
+                        resolve();
+                    });
                 }
-            }, 200);
+            });
         });
-        
+
+        Promise.all(posterPromises).then(() => {
+            if (this.container instanceof HTMLElement && trigger) this.init();
+        });
+
         return this;
     }
     #getVideoType(src){
@@ -461,7 +461,8 @@ export class VideoPlayer{
         Object.keys(this.styles).forEach(i=>{
             this.container.style.setProperty(`--video-${i}`,this.styles[i]);
         });
-        this.container.innerHTML+=`<div class="video-player"></div>`;
+        if(this.container.hasAttribute('video')) return;
+        this.container.innerHTML=`<div class="video-player"></div>`;
         this.container.querySelector('.video-player').innerHTML = `${window.QRCode ? `<div class="QRcode"><span class="close"><i class="fa-solid fa-x"></i></span></div>` : ''}<div class="playpauseUI" data-status="isPaused">
             <span class="uiPlayPause"></span>
         </div>
@@ -1559,49 +1560,53 @@ export class VideoPlayer{
                     urlParams.set('v',videoID);
                     window.history.pushState({},'',`${window.location.pathname}?v=${urlParams.toString().replace(/v=/g,'')}`);
                 }
-                const t = e.target.parentNode.getAttribute('data-video') ?  e.target.parentNode.getAttribute('data-video') : e.target.parentNode.parentNode.getAttribute('data-video');
-                if(t!==null){
-                    this.container.querySelectorAll('.chapter-line').forEach(c=>{
+                const t = e.target.closest('.playlist-item')?.getAttribute('data-video');
+                if (t !== null && t !== undefined) {
+                    this.container.querySelectorAll('.chapter-line').forEach(c => {
                         c.remove();
                     });
                     changeParams(t);
                     const frame = this.container.querySelector('.video-frame'),
-                    preview = this.container.querySelector('.preview-video');
+                        preview = this.container.querySelector('.preview-video');
                     frame.innerHTML = ``;
                     preview.innerHTML = ``;
-                    const x = this.#videoList.find(v => v.videoID === t)['videoName'];
-                    Array.from(this.config.playlists).filter(e => e.src.some(item => item.src.match(x))).map(k => {
-                        k.src.forEach((i)=>{
-                            this.container.querySelector('.video-title h1').innerText = k.title??'';
-                            const source = document.createElement('source');
-                            source.src = i.src;
-                            source.setAttribute('data-quality',i.quality);
-                            if(i.quality==='auto'){
-                                frame.src = i.src;
-                                frame.poster = k.poster;
-                            }
-                            source.type = this.#getVideoType(i.src);
-                            frame.appendChild(source);
-                            const presource = document.createElement('source');
-                            presource.src = i.src;
-                            presource.setAttribute('data-quality',i.quality);
-                            if(i.quality==='auto'){
-                                preview.src = i.src;
-                                preview.poster = k.poster;
-                            }
-                            presource.type = this.#getVideoType(i.src);
-                            preview.appendChild(presource);
+                    const videoObj = this.#videoList.find(v => v.videoID === t);
+                    if (!videoObj) return;
+                    const x = videoObj['videoName'];
+                    Array.from(this.config.playlists)
+                        .filter(e => Array.isArray(e.src) && e.src.some(item => item && item.path && x && item.path.match(x)))
+                        .forEach(k => {
+                            k.src.forEach(i => {
+                                this.container.querySelector('.video-title h1').innerText = k.title ?? '';
+                                const source = document.createElement('source');
+                                source.src = i.path;
+                                source.setAttribute('data-quality', i.quality);
+                                if (i.quality === 'auto') {
+                                    frame.src = i.path;
+                                    frame.poster = k.poster;
+                                }
+                                source.type = this.#getVideoType(i.path);
+                                frame.appendChild(source);
+                                const presource = document.createElement('source');
+                                presource.src = i.path;
+                                presource.setAttribute('data-quality', i.quality);
+                                if (i.quality === 'auto') {
+                                    preview.src = i.path;
+                                    preview.poster = k.poster;
+                                }
+                                presource.type = this.#getVideoType(i.path);
+                                preview.appendChild(presource);
+                            });
+                            k.tracks?.forEach(i => {
+                                const tracks = document.createElement('track');
+                                tracks.src = i.src;
+                                tracks.kind = i.kind;
+                                tracks.srclang = i.srclang;
+                                tracks.label = i.label;
+                                tracks.track.mode = 'disabled';
+                                frame.appendChild(tracks);
+                            });
                         });
-                        k.tracks?.forEach((i)=>{
-                            const tracks = document.createElement('track');
-                            tracks.src = i.src;
-                            tracks.kind = i.kind;
-                            tracks.srclang = i.srclang;
-                            tracks.label = i.label;
-                            tracks.track.mode = 'disabled';
-                            frame.appendChild(tracks);
-                        });
-                    });
 
                     if(!frame.querySelector('track[kind="subtitles"]')){
 
@@ -1904,7 +1909,6 @@ export class AudioPlayer{
         });
     }
     init(){
-        this.params = new URLSearchParams(window.location.search);
         this.container.tabIndex = 0;
         this.container.classList.add('audio');
         Object.keys(this.styles).forEach(i=>{
