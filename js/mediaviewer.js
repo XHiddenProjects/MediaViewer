@@ -1,7 +1,7 @@
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.2.0
+ * @version 1.2.2
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -268,7 +268,11 @@ export class Gallery{
             if(this.container instanceof HTMLElement&&trigger) this.init();
         });
         if(this.config.autoResize) 
-            window.addEventListener('resize',()=>{this.loadImages().then(() => {this.init();});});
+            window.addEventListener('resize', () => {
+                this.loadImages().then(() => {
+                    this.container.style.setProperty('--gallery-max-cols', this.styles['max-cols']);
+                });
+            });
     }
 
     async loadImages() {
