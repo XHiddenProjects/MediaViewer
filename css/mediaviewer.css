@@ -3,6 +3,7 @@
     --carousel-control-color: #cdcdcd;
     --carousel-indicator-color: rgb(234, 234, 234);
     --carousel-captions-color: #eceaea;
+    --carousel-captions-bg: rgba(0, 0, 0, 0.6);
     /*GALLERY*/
     --gallery-max-cols: 300px;
     --gallery-gap: 10px;
@@ -38,6 +39,8 @@
     --video-error-bg: #000;
     --video-error-color: #fff;
     --video-title-color: #fefefe;
+    --video-playlist-title: #ffffff;
+    --video-playlist-author: #b3b3b3;
     /*Families*/
     --family-monospaced-serif: "Courier New", Courier, "Nimbus Mono L", "Cutive Mono", monospace;
     --family-proportional-serif : "Times New Roman", Times, Georgia, Cambria, "PT Serif Caption", serif;
@@ -58,7 +61,8 @@
     --video-cue-font-opacity: 1;
 
     /*QRCode*/
-    --qrcode-bg: #fff;
+    --qrcode-bg: rgba(255, 255, 255, .85);
+    --qr-spinner: #4badde;
 
     /*AUDIO*/
     --audio-playlist-background: #04070b;
@@ -171,6 +175,7 @@ right:0;
 }
 .carousel .carousel-caption{
     color: var(--carousel-captions-color);
+    background-color: var(--carousel-captions-bg);
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
@@ -340,7 +345,6 @@ right:0;
     position: relative;
     outline: none;
     display: flex;
-    max-height: calc(100% - 120px);
     max-width: 100%;
 }
 .video.embed{
@@ -467,6 +471,24 @@ right:0;
     top:50%;
     left: 50%;
     transform: translate(-50%,-50%);
+}
+
+.QRcode .qr-spinner{
+    position: absolute;
+    top: calc(250px / 2);
+    font-size: 6vh;
+    right: calc(250px / 2);
+    transform: translate(66%, -50%);
+    animation: qr-spin 1s infinite linear;
+    color: var(--qr-spinner)
+}
+@keyframes qr-spin {
+    from{
+        transform: translate(66%, -50%) rotate(0deg);
+    }
+    to{
+        transform: translate(66%, -50%) rotate(360deg);
+    }
 }
 
 .video .video-frame{
@@ -838,6 +860,9 @@ right:0;
 .video.video-fullscreen{
     justify-content: center;
 }
+.video.video-fullscreen .playlists{
+    display: none;
+}
 
 .video .video-title{
     position: absolute;
@@ -894,7 +919,6 @@ right:0;
     font-family: var(--video-cue-font);
     height: inherit;
     display: inline-block;
-    width: calc(65% + 15px);
 }
 .video .closed-captions-bar .closed-captions-text.small-caps{
     font-variant: small-caps;
@@ -981,9 +1005,10 @@ right:0;
     font-size: 25px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     overflow-y: auto;
     background-color: var(--video-playlist);
+    width: 45%;
 }
 
 .video.embed .controls{
@@ -1012,6 +1037,28 @@ right:0;
     position: relative;
     cursor: pointer;
     margin: 1rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.video .playlists .playlist-author{
+    color: var(--video-playlist-author);
+    font-size: clamp(14px, 1.5vw, 16px);
+    font-weight: 800;
+    margin-left: 5px;
+    margin-top: 5px;
+    text-align: left;
+    word-wrap: break-word;
+}
+
+.video .playlists .playlist-title{
+    color: var(--video-playlist-title);
+    font-size: clamp(14px, 2vw, 18px);
+    font-weight: 800;
+    margin-left: 5px;
+    text-align: left;
+    word-wrap: break-word;
 }
 .video .playlists .playlist-img{
     width: 168px;
@@ -1258,6 +1305,11 @@ right:0;
 .audio .volume-container .volume-holder{
     display: flex;
     align-items: center;
+}
+
+
+.audio .btn{
+    cursor: pointer;
 }
 
 .audio .volumeRange:hover,

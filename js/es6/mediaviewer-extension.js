@@ -190,6 +190,8 @@ export class Extension{
             console.error('Invalid container type. Expected a string, array, or object:', container);
         }
 
+
+
         if (this.isInstanceof(this.getInstance(config), Config)) {
             this.config = config;
         } else {
@@ -246,6 +248,7 @@ export class Extension{
             const media = processMedia(medias);
             if (media) this.medias.push(media);
         }
+        
     }
     /**
      * Use a certain media from the included list
@@ -259,14 +262,13 @@ export class Extension{
              * @returns {Class} Executes the used media
              */
             apply: () => {
-                
                 const mediaInstance = this.medias.find((m) => this.isInstanceof(this.getInstance(m), media)).constructor;
                 const mediaName = mediaInstance.name;
                 let container;
                 if (Array.isArray(this.container)) container = this.container[this.#setIncrement++];
                 else if (typeof this.container === 'object') container = this.container[mediaName];
                 else container = this.container;
-
+                
                 if (!container) {
                     console.error(`Container not found for media: ${mediaInstance.constructor.name}`);
                     return null;

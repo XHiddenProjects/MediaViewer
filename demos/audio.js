@@ -19,7 +19,7 @@ new AudioPlayer('.demo',{
                 path: 'audios/music2.mp3',
                 title: 'WE GOT THE MOVES',
                 artist: 'Electric Callboy',
-                album: ''
+                album: 'TEKKNO'
             }],
             tracks: [{
                 src: 'tracks/we_got_the_moves_de.vtt',

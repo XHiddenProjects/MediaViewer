@@ -357,7 +357,7 @@ export class VideoPlayer{
     /**
      * Generate a new video element
      * @param {String} container 
-     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, skipRate: number, embed: boolean}} config Configurations
+     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, author: string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, skipRate: number, embed: boolean}} config Configurations
      * @param {{}} styles Style configuration
      * @returns {Video} return the video element
      * @param {boolean} [trigger=true] Active the event
@@ -463,7 +463,7 @@ export class VideoPlayer{
         });
         if(this.container.hasAttribute('video')) return;
         this.container.innerHTML=`<div class="video-player"></div>`;
-        this.container.querySelector('.video-player').innerHTML = `${window.QRCode ? `<div class="QRcode"><span class="close"><i class="fa-solid fa-x"></i></span></div>` : ''}<div class="playpauseUI" data-status="isPaused">
+        this.container.querySelector('.video-player').innerHTML = `${window.QRCode ? `<div class="QRcode"><span class="close"><i class="fa-solid fa-x"></i> <i class="fa-solid fa-spinner-third qr-spinner"></i></span></div>` : ''}<div class="playpauseUI" data-status="isPaused">
             <span class="uiPlayPause"></span>
         </div>
         <div class="videoNotFound">
@@ -492,8 +492,14 @@ export class VideoPlayer{
             ${
                 Array.from(this.config.playlists).map(e => {
                     return `<div class="playlist-item" tab-index="0" data-video="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))['videoID']}">
-                        <img src="${e.poster}" class="playlist-img"/>
-                        <span data-video-src="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))['videoID']}" class="playlist-timeDur" data-video-duration="${this.#sec2time(e.duration)}">${this.#sec2time(e.duration)}</span>
+                        <div style="position: relative;">
+                            <img src="${e.poster}" class="playlist-img"/>
+                            <span data-video-src="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))['videoID']}" class="playlist-timeDur" data-video-duration="${this.#sec2time(e.duration)}">${this.#sec2time(e.duration)}</span>
+                        </div>
+                        <div>
+                            <p class="playlist-title">${e.title}</p>
+                            <p class="playlist-author">${e.author??''}</p>
+                        </div>
                     </div>`;
                 }).join('')
             }
@@ -524,8 +530,8 @@ export class VideoPlayer{
             this.#videoEvents();
             this.#triggerVideo();
             this.#triggerSettings();
-            this.#playlists();
         }
+        this.#playlists();
     }
     getInstance(){
         return this;
@@ -571,6 +577,7 @@ export class VideoPlayer{
                                 ${this.container.querySelector('track[kind="subtitles"]') ? '<li class="settings-menu-list-item" data-settings="option-cc"><span><i class="fa-regular fa-closed-captioning"></i> Closed Captions</span></li>' : ''}
                                 <li class="settings-menu-list-item" data-settings="option-playback"><span><i class="fa-regular fa-circle-play"></i> Playback Speed</span></li>
                                 <li class="settings-menu-list-item" data-settings="option-quality"><span><i class="fa-regular fa-sliders"></i> Quality</span></li>
+                                <li class="settings-menu-list-item" data-settings="option-cc"><span><i class="fa-solid fa-closed-captioning"></i> Closed Captions</span></li>
                             </ul>
                             <div class="options option-cc">
                                 <div class="options-header">
@@ -582,9 +589,21 @@ export class VideoPlayer{
                                 </div>
                                 <ul class="settings-menu-list">
                                 ${
-                                    Array.from(this.container.querySelectorAll('track[kind="subtitles"]')).map((e) => 
-                                        `<li class="settings-menu-list-item" data-subtitle="${e.srclang}"><span>${e.label}</span></li>`
-                                    ).join('')
+                                    (() => {
+                                        const generateSubtitleMenu = () => {
+                                            const tracks = Array.from(this.container.querySelectorAll('track[kind="subtitles"]'));
+                                            if (tracks.length === 0) return '<li class="settings-menu-list-item disabled"><span>No subtitles available</span></li>';
+                                            return tracks.map((e) => {
+                                                const isChecked = e.track && e.track.mode === 'hidden';
+                                                return `<li class="settings-menu-list-item${isChecked ? ' checked' : ''}" data-subtitle="${e.getAttribute('srclang')}"><span>${e.getAttribute('label')}</span></li>`;
+                                            }).join('');
+                                        };
+                                        setTimeout(() => {
+                                            const x = this.container.querySelector('.option-cc .settings-menu-list');
+                                            if (x) x.innerHTML = generateSubtitleMenu();
+                                        }, 0);
+                                        return generateSubtitleMenu();
+                                    })()
                                 }
                                 </ul>
                             </div>
@@ -612,15 +631,27 @@ export class VideoPlayer{
                                 </div>
                                 <ul class="settings-menu-list">
                                 ${
-                                    Array.from(this.container.querySelectorAll('.video-frame source[data-quality]'))
-                                        .sort((a, b) => {
-                                            const qualityA = a.getAttribute('data-quality') === 'auto' ? -1 : parseInt(a.getAttribute('data-quality') || 0, 10);
-                                            const qualityB = b.getAttribute('data-quality') === 'auto' ? -1 : parseInt(b.getAttribute('data-quality') || 0, 10);
-                                            return qualityB - qualityA;
-                                        })
-                                        .map((e) => 
-                                            `<li class="settings-menu-list-item${e.getAttribute('data-quality')==='auto' ? ' checked' : ''}" data-quality="${e.getAttribute('data-quality')}"><span>${e.getAttribute('data-quality')!=='auto' ? `${e.getAttribute('data-quality').charAt(0).toUpperCase() + e.getAttribute('data-quality').slice(1)}p` : `${e.getAttribute('data-quality').charAt(0).toUpperCase() + e.getAttribute('data-quality').slice(1)}`}</span></li>`
-                                        ).join('')
+                                    (() => {
+                                        const urlParams = new URLSearchParams(window.location.search);
+                                        const videoID = urlParams.get('v');
+                                        const playlist = this.config.playlists.find(item =>
+                                            this.#videoList.some(video => video.videoID === videoID && fileName(item.src[0].path) === video.videoName)
+                                        );
+                                        if (!playlist) return '';
+                                        // Remove duplicate qualities
+                                        const uniqueSources = playlist.src.filter((src, idx, arr) =>
+                                            arr.findIndex(s => s.quality === src.quality) === idx
+                                        );
+                                        return uniqueSources
+                                            .sort((a, b) => {
+                                                const qualityA = a.quality === 'auto' ? -1 : parseInt(a.quality || 0, 10);
+                                                const qualityB = b.quality === 'auto' ? -1 : parseInt(b.quality || 0, 10);
+                                                return qualityA - qualityB;
+                                            })
+                                            .map((src) =>
+                                                `<li class="settings-menu-list-item${src.quality === 'auto' ? ' checked' : ''}" data-quality="${src.quality}"><span>${src.quality !== 'auto' ? `${src.quality.charAt(0).toUpperCase() + src.quality.slice(1)}p` : `${src.quality.charAt(0).toUpperCase() + src.quality.slice(1)}`}</span></li>`
+                                            ).join('');
+                                    })()
                                 }
                                 </ul>
                             </div>
@@ -710,7 +741,7 @@ export class VideoPlayer{
                     .sort((a, b) => {
                         const qualityA = a.getAttribute('data-quality') === 'auto' ? -1 : parseInt(a.getAttribute('data-quality') || 0, 10);
                         const qualityB = b.getAttribute('data-quality') === 'auto' ? -1 : parseInt(b.getAttribute('data-quality') || 0, 10);
-                        return qualityB - qualityA;
+                        return qualityA - qualityB;
                     })
                     .map((e) => 
                         `<li class="settings-menu-list-item${e.getAttribute('data-quality') === 'auto' ? ' checked' : ''}" data-quality="${e.getAttribute('data-quality')}"><span>${e.getAttribute('data-quality') !== 'auto' ? `${e.getAttribute('data-quality').charAt(0).toUpperCase() + e.getAttribute('data-quality').slice(1)}p` : `${e.getAttribute('data-quality').charAt(0).toUpperCase() + e.getAttribute('data-quality').slice(1)}`}</span></li>`
@@ -1413,56 +1444,57 @@ export class VideoPlayer{
             this.container.querySelector('.option-cc').classList.add('active');
         });
 
-
-        this.container.querySelectorAll(`.option-cc .settings-menu-list-item`).forEach(e=>{
-            e.addEventListener('click',k=>{
-                k = k.target.tagName!=='SPAN' ? k.target : k.target.parentNode;
-                this.container.querySelectorAll(`.option-cc .settings-menu-list-item`).forEach(e=>{
-                    if(e.getAttribute('data-subtitle')===k.getAttribute('data-subtitle')){
-                        e.classList.add('checked');
-                        this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${k.getAttribute('data-subtitle')}"]`).setAttribute('checked', 'checked');
-                        this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${k.getAttribute('data-subtitle')}"]`).track.mode = 'hidden';
-                    }else{
-                        e.classList.remove('checked');
-                        this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${e.getAttribute('data-subtitle')}"]`).removeAttribute('checked');
-                        this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${e.getAttribute('data-subtitle')}"]`).track.mode = 'disabled';
-                    }
-                });
-                const tracks = this.container.querySelectorAll(`.video-frame track[kind="subtitles"]`);
-                if (tracks.length === 0) return;
-                tracks.forEach(e=>{
-                    setTimeout(()=>{
-                        if (e.track.mode === 'hidden') {
-                            const activeCues = e.track.activeCues;
-                            const captionsText = this.container.querySelector('.closed-captions-text');
-                            if (activeCues && activeCues.length > 0) {
-                                captionsText.innerText = activeCues[0].text;
-                            } else {
-                                const currentTime = this.container.querySelector('.video-frame').currentTime;
-                                const cues = e.track.cues;
-                                if (cues && cues.length > 0) {
-                                    Array.from(cues).forEach(cue => {
-                                        if (currentTime >= cue.startTime && currentTime <= cue.endTime) {
-                                            captionsText.innerText = cue.text;
-                                        }
-                                    });
-                                }
-                            }
+        setTimeout(()=>{
+            this.container.querySelectorAll(`.option-cc .settings-menu-list-item`).forEach(e=>{
+                e.addEventListener('click',k=>{
+                    k = k.target.tagName!=='SPAN' ? k.target : k.target.parentNode;
+                    this.container.querySelectorAll(`.option-cc .settings-menu-list-item`).forEach(e=>{
+                        if(e.getAttribute('data-subtitle')===k.getAttribute('data-subtitle')){
+                            e.classList.add('checked');
+                            this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${k.getAttribute('data-subtitle')}"]`).setAttribute('checked', 'checked');
+                            this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${k.getAttribute('data-subtitle')}"]`).track.mode = 'hidden';
+                        }else{
+                            e.classList.remove('checked');
+                            this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${e.getAttribute('data-subtitle')}"]`).removeAttribute('checked');
+                            this.container.querySelector(`.video-frame track[kind="subtitles"][srclang="${e.getAttribute('data-subtitle')}"]`).track.mode = 'disabled';
                         }
-                        const selectedTrack = Array.from(this.container.querySelectorAll('track')).find(track => track.getAttribute('kind') === 'subtitles' && track.hasAttribute('checked'));
-                        if (selectedTrack) {
-                            selectedTrack.track.addEventListener('cuechange', (event) => {
-                                const activeCues = event.target.activeCues;
+                    });
+                    const tracks = this.container.querySelectorAll(`.video-frame track[kind="subtitles"]`);
+                    if (tracks.length === 0) return;
+                    tracks.forEach(e=>{
+                        setTimeout(()=>{
+                            if (e.track.mode === 'hidden') {
+                                const activeCues = e.track.activeCues;
                                 const captionsText = this.container.querySelector('.closed-captions-text');
                                 if (activeCues && activeCues.length > 0) {
                                     captionsText.innerText = activeCues[0].text;
+                                } else {
+                                    const currentTime = this.container.querySelector('.video-frame').currentTime;
+                                    const cues = e.track.cues;
+                                    if (cues && cues.length > 0) {
+                                        Array.from(cues).forEach(cue => {
+                                            if (currentTime >= cue.startTime && currentTime <= cue.endTime) {
+                                                captionsText.innerText = cue.text;
+                                            }
+                                        });
+                                    }
                                 }
-                            });
-                        }
-                    },100);
+                            }
+                            const selectedTrack = Array.from(this.container.querySelectorAll('track')).find(track => track.getAttribute('kind') === 'subtitles' && track.hasAttribute('checked'));
+                            if (selectedTrack) {
+                                selectedTrack.track.addEventListener('cuechange', (event) => {
+                                    const activeCues = event.target.activeCues;
+                                    const captionsText = this.container.querySelector('.closed-captions-text');
+                                    if (activeCues && activeCues.length > 0) {
+                                        captionsText.innerText = activeCues[0].text;
+                                    }
+                                });
+                            }
+                        },100);
+                    });
                 });
             });
-        });
+        },0);
 
         this.container.querySelector('.font-family').addEventListener('input',(e)=>{
             if(e.target.value==='--family-small-capitals')
@@ -1549,10 +1581,39 @@ export class VideoPlayer{
         this.container.querySelectorAll('.playlist-item').forEach(i=>{
             i.addEventListener('click',(e)=>{
                 setTimeout(()=>{
-                    if(!this.container.querySelector('track[kind="subtitles"]'))
-                        this.container.querySelector('[data-settings="option-cc"]').style.display = 'none';
-                    else
-                        this.container.querySelector('[data-settings="option-cc"]').style.display = 'block';
+                    const optionCC = this.container.querySelector('[data-settings="option-cc"]');
+                    if (optionCC) {
+                        if (!this.container.querySelector('track[kind="subtitles"]'))
+                            optionCC.style.display = 'none';
+                        else
+                            optionCC.style.display = 'block';
+                    }
+                    // Update quality menu after playlist change
+                    const qualityMenu = this.container.querySelector('.option-quality .settings-menu-list');
+                    if (qualityMenu) {
+                        const videoFrame = this.container.querySelector('.video-frame');
+                        const sources = Array.from(videoFrame.querySelectorAll('source[data-quality]'));
+                        // Find the currently selected quality (the source with src matching videoFrame.src)
+                        let checkedQuality = 'auto';
+                        if (videoFrame.src) {
+                            const currentSource = sources.find(s => s.src === videoFrame.src);
+                            if (currentSource) {
+                                checkedQuality = currentSource.getAttribute('data-quality');
+                            }
+                        }
+                        qualityMenu.innerHTML = sources
+                            .sort((a, b) => {
+                                const qa = a.getAttribute('data-quality') === 'auto' ? -1 : parseInt(a.getAttribute('data-quality') || 0, 10);
+                                const qb = b.getAttribute('data-quality') === 'auto' ? -1 : parseInt(b.getAttribute('data-quality') || 0, 10);
+                                return qa - qb;
+                            })
+                            .map(source => {
+                                const q = source.getAttribute('data-quality');
+                                const checked = q === checkedQuality ? ' checked' : '';
+                                const label = q !== 'auto' ? `${q.charAt(0).toUpperCase() + q.slice(1)}p` : `${q.charAt(0).toUpperCase() + q.slice(1)}`;
+                                return `<li class="settings-menu-list-item${checked}" data-quality="${q}"><span>${label}</span></li>`;
+                            }).join('');
+                    }
                 },100);
                 
                 const changeParams = (videoID)=>{
@@ -1774,6 +1835,7 @@ export class AudioPlayer{
      */
     constructor(container, config, styles={}, trigger=true){
         if(!isLoaded()) return;
+        this.params = new URLSearchParams(window.location.search);
         this.container = document.querySelector(container);
         this.config = {
             autoplay: false,

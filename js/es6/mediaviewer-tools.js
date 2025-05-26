@@ -465,3 +465,25 @@ export const finalizeURL = () => {
         },200);
     });
 };
+/**
+ * Generates a random id
+ * @param {String} [prefix=''] Prefix for the id
+ * @param {Boolean} [extend=false] Returns the length to 23 characters instead of 13
+ */
+export const uniqueid = (prefix='', extend=false)=>{
+    // Generate a random string of specified length
+    const length = extend ? 23 : 13;
+    const randomStr = Math.random().toString(36).substr(2, length);
+    return `${prefix}${randomStr}`;
+}
+/**
+ * Parse string to boolean
+ * @param {String} str String
+ * @param {Boolean} defNull Default value on _null_
+ * @returns {Boolean} True if the string is "true", otherwise False
+ * @throws Invalid boolean string
+ */
+export const parseBoolean = (str,defNull=false)=>{
+    if(str.match(/^(true|false|)$/gi)) return (defNull ? (str.match(/^(true|)$/gi) ? true : false) : (str.match(/^true$/gi) ? true : false));
+    else throw new Error('Must be a True/False');
+}

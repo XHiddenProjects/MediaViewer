@@ -35,7 +35,14 @@ new VideoPlayer('.demo',{
         title: 'Big Bunny',
         src: src,
         tracks: tracks,
+    },{
+        poster: [],
+        title: 'Music Video',
+        src: [{
+            quality: 'auto',
+            path: 'videos/video2.mp4'
+        }],
+        tracks: []
     }
-    // Add more here
     ]
 });
