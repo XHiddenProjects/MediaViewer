@@ -1,4 +1,4 @@
-import { startup, AudioPlayer} from "./js/mediaviewer.js";
+import { startup, AudioPlayer} from "../../js/mediaviewer.js";
 startup();
 new AudioPlayer('.demo',{
     autoplay: false,
