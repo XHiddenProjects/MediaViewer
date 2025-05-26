@@ -28,3 +28,7 @@ These are requirements that will be injected into your website
 | Vue.js     | ✖️         |
 | Angular    | ✖️         |
 | Express.js | ✖️         |
+
+
+## Contribute
+If you would like to contribute to the project, you are welcome to do so.
