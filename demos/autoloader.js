@@ -1,6 +1,6 @@
-import { Extension, Config, Styles } from "./js/es6/mediaviewer-extension.js";
-import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel} from "./js/es6/mediaviewer.js";
-import { uniqueid, parseBoolean } from "./js/es6/mediaviewer-tools.js";
+import { Extension, Config, Styles } from "../../js/mediaviewer-extension.js";
+import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel} from "../../js/mediaviewer.js";
+import { uniqueid, parseBoolean } from "../../js/mediaviewer-tools.js";
 startup();
 export const autoloader = class extends Extension{
     constructor(container,config,styles){
