@@ -1,6 +1,6 @@
 /**
  * @package MediaViewer
- * @version 1.1.0
+ * @version 1.2.0
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
