@@ -3,3 +3,9 @@
         top: calc(100% - 7%);
     }
 }
+
+@media screen and (min-width: 1209px){
+    .video.video-theater .controls{
+        top: calc(100% - 10%);
+    }
+}

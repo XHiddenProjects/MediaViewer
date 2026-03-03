@@ -1,7 +1,7 @@
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.2.3
+ * @version 1.2.4
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -396,52 +396,50 @@ export class VideoPlayer{
 
         
 
-        this.config.autoplay = JSON.parse(window.localStorage.getItem(`mediaViewer_video_config`))['autoplay']??this.config.autoplay;
+        // Safely parse the stored config (falls back to empty object)
+        const storedConfig = JSON.parse(window.localStorage.getItem('mediaViewer_video_config') || '{}');
+
+        // Use optional chaining + nullish coalescing to preserve the current default if missing
+        this.config.autoplay = storedConfig?.autoplay ?? this.config.autoplay;
 
         
+// Build video id list deterministically before init
+const buildListPromises = this.config.playlists.map(async (i) => {
+  const name = fileName(i.src[0].path);
+  const id = await genID(name);
+  return { videoName: name, videoID: id };
+});
+Promise.all(buildListPromises)
+  .then((list) => {
+    // de-duplicate by videoName while preserving order
+    const seen = new Set();
+    this.#videoList = list.filter((it) => {
+      if (seen.has(it.videoName)) return false;
+      seen.add(it.videoName);
+      return true;
+    });
+    // Generate poster screenshots for all playlists before calling init
+    const posterPromises = this.config.playlists.map((e) => {
+      return new Promise((resolve) => {
+        if (typeof e.poster === 'string' && e.poster.trim() !== '') {
+          resolve();
+        } else {
+          videoData(e.src[0]['path'], 1, (p) => {
+            if (p && p.poster && p.duration) {
+              e.poster = p.poster;
+              e.duration = p.duration;
+            }
+            resolve();
+          });
+        }
+      });
+    });
+    return Promise.all(posterPromises);
+  })
+  .then(() => {
+    if (this.container instanceof HTMLElement && trigger) this.init();
+  });
 
-
-        this.config.playlists.map((i)=>{
-            let videoID='';
-            genID(fileName(i.src[0].path)).then((id)=>{
-                videoID = id;
-            });
-            
-            setTimeout(()=>{
-
-                if(!this.#videoList.some(item=>item.videoName===fileName(i.src[0].path))){
-                    this.#videoList.push({
-                        videoName: fileName(i.src[0].path),
-                        videoID: videoID
-                    });
-                }
-            },50);
-        });
-
-
-
-        
-        // Generate poster screenshots for all playlists before calling init
-        const posterPromises = this.config.playlists.map((e) => {
-            return new Promise((resolve) => {
-                if (typeof e.poster === 'string' && e.poster.trim() !== '') {
-                    // Poster already set, skip screenshot generation
-                    resolve();
-                } else {
-                    videoData(e.src[0]['path'], 1, (p) => {
-                        if (p && p.poster && p.duration) {
-                            e.poster = p.poster;
-                            e.duration = p.duration;
-                        }
-                        resolve();
-                    });
-                }
-            });
-        });
-
-        Promise.all(posterPromises).then(() => {
-            if (this.container instanceof HTMLElement && trigger) this.init();
-        });
 
         return this;
     }
@@ -495,10 +493,10 @@ export class VideoPlayer{
         this.container.innerHTML+=`<div class="playlists${this.config.playlists.length<2 ? ' noShow' : ''}">
             ${
                 Array.from(this.config.playlists).map(e => {
-                    return `<div class="playlist-item" tab-index="0" data-video="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))['videoID']}">
+                    return `<div class="playlist-item" tab-index="0" data-video="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))?.videoID}">
                         <div style="position: relative;">
                             <img src="${e.poster}" class="playlist-img"/>
-                            <span data-video-src="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))['videoID']}" class="playlist-timeDur" data-video-duration="${this.#sec2time(e.duration)}">${this.#sec2time(e.duration)}</span>
+                            <span data-video-src="${this.#videoList.find(v => v.videoName === fileName(e.src[0].path))?.videoID}" class="playlist-timeDur" data-video-duration="${this.#sec2time(e.duration)}">${this.#sec2time(e.duration)}</span>
                         </div>
                         <div>
                             <p class="playlist-title">${e.title}</p>
@@ -890,19 +888,25 @@ export class VideoPlayer{
             this.parentNode.parentNode.querySelector('.pip-play-pause').className = this.parentNode.parentNode.querySelector('.pip-play-pause').className.replace('fa-play', 'fa-pause');
             const x = this.parentNode.parentNode.querySelector('.playpauseUI');
             x.setAttribute('data-status','isPlaying');
-            x.classList.add('toggled');
-            setTimeout(()=>{
-                x.classList.remove('toggled');
-            },800);
+            // restart animation if it was already running
+x.classList.remove('toggled');
+void x.offsetWidth; // reflow to restart CSS animation
+x.classList.add('toggled');
+// Remove the class when animation completes (prevents flicker)
+x.addEventListener('animationend', () => { x.classList.remove('toggled'); }, { once: true });
+
         });
 
-        video.addEventListener('pause',function(){
+        video.addEventListener('pause', function() {
             const x = this.parentNode.parentNode.querySelector('.playpauseUI');
             x.setAttribute('data-status','isPaused');
-            x.classList.add('toggled');
-            setTimeout(()=>{
-                x.classList.remove('toggled');
-            },800);
+            // restart animation if it was already running
+x.classList.remove('toggled');
+void x.offsetWidth; // reflow to restart CSS animation
+x.classList.add('toggled');
+// Remove the class when animation completes (prevents flicker)
+x.addEventListener('animationend', () => { x.classList.remove('toggled'); }, { once: true });
+
             this.parentNode.parentNode.querySelector('.play-pause').className = this.parentNode.parentNode.querySelector('.play-pause').className.replace('fa-pause', 'fa-play');
             this.parentNode.parentNode.querySelector('.pip-play-pause').className = this.parentNode.parentNode.querySelector('.pip-play-pause').className.replace('fa-pause', 'fa-play');
         });
@@ -987,8 +991,10 @@ export class VideoPlayer{
                     break;
                     case 'copyembed':
                         const vID = (new URLSearchParams(window.location.search)).get('v');
-                        const x = this.#videoList.find(v => v.videoID === vID)['videoName'];
-                        window.localStorage.setItem(`embed_${vID}`,JSON.stringify({lists: this.#videoList, playlists: this.config.playlists.filter((i)=>i.src[0].path.match(x))}));
+                        const record = this.#videoList.find(v => v.videoID === vID);
+                        if (!record) { alert('Unable to build embed code: unknown video ID'); break; }
+                        const x = record['videoName'];
+                        window.localStorage.setItem(`embed_${vID}`, JSON.stringify({ lists: this.#videoList, playlists: this.config.playlists.filter((i)=> i.src[0].path.match(x)) }));
                         clipboard.copy(`<iframe width="937" height="527" src="${this.config.embedURL}?v=${vID}" title="${this.container.querySelector('.video-title').innerText??''}" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>`) ? alert("Copied to clipboard") : alert("Failed to copy");
                     break;
                     case 'openqrcode':
@@ -1173,51 +1179,87 @@ export class VideoPlayer{
         this.container.querySelector('.video-frame').addEventListener('keydown',(event) => shortcuts(event));
 
         const shortcuts = (e)=>{
-            const key = e.key||e.keyCode||e.which;
-            if ((key === ' ' || key === 'k' || key === 32 || key === 75)) 
-                this.container.querySelector('.play-pause').click();
-            
-            if(key==='ArrowLeft'||key==37)
-                video.currentTime = Math.max(0, video.currentTime - this.config.skipRate);
-            if(key==='ArrowRight'||key==39)
-                video.currentTime = Math.min(video.duration, video.currentTime + this.config.skipRate);
-            if(key === 'm' || key == 77){
-                const video = this.container.querySelector('.video-frame');
-                video.muted = !video.muted;
-                const volumeBtn = this.container.querySelector('.volume'),
-                volumeRange = this.container.querySelector('.volumeRange');
-                const activeColor = this.styles['volume-track-before']??'#e7e7e7';
-                const inactiveColor = this.styles['volume-track-after']??'#c8c8c8';
+  // Avoid interfering with typing in form fields/contenteditable
+  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
 
-                if (video.muted) {
-                    volumeBtn.className = `fa-solid fa-volume-slash btn volume`;
-                    volumeRange.value = volumeRange.min;
-                    volumeBtn.title = 'Unmute (m)';
-                    volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 0%, ${inactiveColor} 0%)`;
-                } else {
-                    volumeBtn.className = `fa-solid fa-volume btn volume`;
-                    volumeRange.value = volumeRange.max;
-                    volumeBtn.title = 'Mute (m)';
-                    volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 100%, ${inactiveColor} 100%)`;
-                }
-            }
-            if(key==='i'||key==73){
-                if(this.container.classList.contains('video-pip'))
-                    this.container.querySelector('.pip-expand').click();
-                else 
-                    this.container.querySelector('.pip').click();
-            }
-            if(key==='c'||key==67){
-                if(this.container.querySelector('.cc:not([disabled])'))
-                    this.container.querySelector('.cc:not([disabled])').click();
-            }
-            if(key==='t'||key==84)
-                this.container.querySelector('.theaterMode').click();
-            if(key==='f'||key==70)
-                this.container.querySelector('.fullscreen').click();
-        }
+  const keyRaw = e.key ?? e.keyCode ?? e.which;
+  const key = (typeof keyRaw === 'string') ? keyRaw.toLowerCase() : keyRaw;
 
-        const progressContainer = this.container.querySelector('.progress');
+  // Play/Pause: space or 'k'
+  if (key === ' ' || key === 'k' || key === 32 || key === 75) {
+    if (e.repeat) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.container.querySelector('.play-pause').click();
+    return;
+  }
+
+  // Seek left/right
+  if (key === 'arrowleft' || key === 37) {
+    e.preventDefault();
+    video.currentTime = Math.max(0, video.currentTime - this.config.skipRate);
+    return;
+  }
+  if (key === 'arrowright' || key === 39) {
+    e.preventDefault();
+    video.currentTime = Math.min(video.duration, video.currentTime + this.config.skipRate);
+    return;
+  }
+
+  // Mute toggle ('m')
+  if (key === 'm' || key === 77) {
+    e.preventDefault();
+    const videoEl = this.container.querySelector('.video-frame');
+    videoEl.muted = !videoEl.muted;
+    const volumeBtn = this.container.querySelector('.volume'),
+          volumeRange = this.container.querySelector('.volumeRange');
+    const activeColor = this.styles['volume-track-before']??'#e7e7e7';
+    const inactiveColor = this.styles['volume-track-after']??'#c8c8c8';
+    if (videoEl.muted) {
+      volumeBtn.className = `fa-solid fa-volume-slash btn volume`;
+      volumeRange.value = volumeRange.min;
+      volumeBtn.title = 'Unmute (m)';
+      volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 0%, ${inactiveColor} 0%)`;
+    } else {
+      volumeBtn.className = `fa-solid fa-volume btn volume`;
+      volumeRange.value = volumeRange.max;
+      volumeBtn.title = 'Mute (m)';
+      volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 100%, ${inactiveColor} 100%)`;
+    }
+    return;
+  }
+
+  // PiP
+  if (key === 'i' || key === 73){
+    if(this.container.classList.contains('video-pip'))
+      this.container.querySelector('.pip-expand').click();
+    else
+      this.container.querySelector('.pip').click();
+    return;
+  }
+
+  // CC
+  if (key === 'c' || key === 67){
+    const cc = this.container.querySelector('.cc:not([disabled])');
+    if (cc) cc.click();
+    return;
+  }
+
+  // Theater
+  if (key === 't' || key === 84){
+    e.preventDefault();
+    this.container.querySelector('.theaterMode').click();
+    return;
+  }
+
+  // Fullscreen
+  if (key === 'f' || key === 70){
+    e.preventDefault();
+    this.container.querySelector('.fullscreen').click();
+    return;
+  }
+}
+const progressContainer = this.container.querySelector('.progress');
 
         progressContainer.addEventListener('click', (event) => {
             const rect = progressContainer.getBoundingClientRect();
@@ -1870,7 +1912,8 @@ export class AudioPlayer{
             audio.load();
         });
 
-        this.config.autoplay = JSON.parse(window.localStorage.getItem(`mediaViewer_audio_config`))?.autoplay??this.config.autoplay;
+        const storedAudioCfg = JSON.parse(window.localStorage.getItem('mediaViewer_audio_config') || '{}');
+        this.config.autoplay = storedAudioCfg?.autoplay ?? this.config.autoplay;
 
 
         setTimeout(()=>{
@@ -2193,40 +2236,56 @@ export class AudioPlayer{
 
 
         this.container.addEventListener('keydown',(e)=>{
-            const key = e.key||e.keyCode||e.which,
-            audio = this.container.querySelector('audio');
-            if(key==='ArrowLeft'||key==37){
-                e.preventDefault();
-                audio.currentTime = Math.max(0, audio.currentTime - this.config.skipRate);
-            }
-            if(key==='ArrowRight'||key==39){
-                e.preventDefault();
-                audio.currentTime = Math.min(audio.duration, audio.currentTime + this.config.skipRate);
-            }
-            if(key === 'm' || key == 77){
-                const audio = this.container.querySelector('audio');
-                audio.muted = !audio.muted;
-                const volumeBtn = this.container.querySelector('.volume'),
-                volumeRange = this.container.querySelector('.volumeRange');
-                const activeColor = this.styles['volume-track-before']??'#e7e7e7';
-                const inactiveColor = this.styles['volume-track-after']??'#c8c8c8';
+  const keyRaw = e.key ?? e.keyCode ?? e.which;
+  const key = (typeof keyRaw === 'string') ? keyRaw.toLowerCase() : keyRaw;
+  const audio = this.container.querySelector('audio');
 
-                if (audio.muted) {
-                    volumeBtn.className = `fa-solid fa-volume-slash btn volume`;
-                    volumeRange.value = volumeRange.min;
-                    volumeBtn.title = 'Unmute (m)';
-                    volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 0%, ${inactiveColor} 0%)`;
-                } else {
-                    volumeBtn.className = `fa-solid fa-volume btn volume`;
-                    volumeRange.value = volumeRange.max;
-                    volumeBtn.title = 'Mute (m)';
-                    volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 100%, ${inactiveColor} 100%)`;
-                }
-            }
+  // Don't hijack typing in inputs/contenteditable
+  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
 
-            if(key===' '||key==39)
-                this.container.querySelector('.play-pause').click();
-        });
+  // Seek left/right
+  if (key === 'arrowleft' || key === 37) {
+    e.preventDefault();
+    audio.currentTime = Math.max(0, audio.currentTime - this.config.skipRate);
+    return;
+  }
+  if (key === 'arrowright' || key === 39) {
+    e.preventDefault();
+    audio.currentTime = Math.min(audio.duration, audio.currentTime + this.config.skipRate);
+    return;
+  }
+
+  // Mute toggle
+  if (key === 'm' || key === 77) {
+    e.preventDefault();
+    const volumeBtn = this.container.querySelector('.volume'),
+          volumeRange = this.container.querySelector('.volumeRange');
+    const activeColor = this.styles['volume-track-before']??'#e7e7e7';
+    const inactiveColor = this.styles['volume-track-after']??'#c8c8c8';
+    audio.muted = !audio.muted;
+    if (audio.muted) {
+      volumeBtn.className = `fa-solid fa-volume-slash btn volume`;
+      volumeRange.value = volumeRange.min;
+      volumeBtn.title = 'Unmute (m)';
+      volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 0%, ${inactiveColor} 0%)`;
+    } else {
+      volumeBtn.className = `fa-solid fa-volume btn volume`;
+      volumeRange.value = volumeRange.max;
+      volumeBtn.title = 'Mute (m)';
+      volumeRange.style.background = `linear-gradient(90deg, ${activeColor} 100%, ${inactiveColor} 100%)`;
+    }
+    return;
+  }
+
+  // Play/Pause on Space ONLY + de-dupe (repeat guard)
+  if (key === ' ' || key === 32) {
+    if (e.repeat) return;
+    e.preventDefault();
+    e.stopPropagation();
+    this.container.querySelector('.play-pause').click();
+    return;
+  }
+});
 
         this.container.querySelectorAll('[data-audio-id]').forEach(element => {
             element.addEventListener('click', () => {
@@ -2364,7 +2423,5 @@ export class AudioPlayer{
         },300);
     }
 }
-
-
 //Finalize the URL
 finalizeURL();
