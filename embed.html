@@ -22,8 +22,8 @@
     <body>
         <div class="embed"></div>
         <script type="module">
-            import {startup, VideoPlayer} from './js/es6/mediaviewer.js';
-            import {resizeEmbed} from './js/es6/mediaviewer-tools.js';
+            import {startup, VideoPlayer} from './js/mediaviewer.js';
+            import {resizeEmbed} from './js/mediaviewer-tools.js';
         const videoID = new URLSearchParams(window.location.search),
         data = JSON.parse(localStorage.getItem(`embed_${videoID.get('v')}`));
         if(!data) throw new Error('[MediaViewer]: Embed code is not found');
