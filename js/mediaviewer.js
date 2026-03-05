@@ -1,7 +1,7 @@
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.2.5
+ * @version 1.2.6
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -16,7 +16,7 @@ export const startup = ()=>{
     main = document.createElement('link'),
     mobile = document.createElement('link'),
     qr = document.createElement('script');
-    icons.href = `//cdn.jsdelivr.net/gh/Orlinkzz/fontawesome-pro-v6.7.0@main/css/all.min.css`;
+    icons.href = `./css/all.min.css`;
     icons.rel = `stylesheet`;
     document.head.appendChild(icons);
     fonts.href = `//fonts.googleapis.com/css2?family=Cedarville+Cursive&family=Cutive+Mono&family=Dancing+Script:wght@400..700&family=Handlee&family=PT+Mono&family=PT+Sans+Caption:wght@400;700&family=PT+Serif+Caption:ital@0;1&display=swap`;
@@ -239,121 +239,224 @@ export class Carousel{
     }
 };
 export class Gallery{
-    /**
-     * Creates an image gallery
-     * @param {String} container Container element
-     * @param {{images: string[], captions: string[], zoom: boolean, gap: string, autoResize: boolean, static: boolean}} config 
-     * @param {{}} styles Style configuration
-     * @param {boolean} [trigger=true] Active the event
-     */
-    constructor(container, config, styles, trigger=true){
-        if(!isLoaded()) return;
-        this.container = document.querySelector(container);
-        this.config = {
-            images: [],
-            captions: [],
-            zoom: false,
-            gap: '0px',
-            autoResize: false,
-            static: false
-        };
-        this.styles = {
-            'max-cols': '1fr',
-            'gap': this.config.gap
-        };
-        this.interval = null;
-        Object.assign(this.config, config);
-        Object.assign(this.styles, styles);
-        this.loadImages().then(() => {
-            if(this.container instanceof HTMLElement&&trigger) this.init();
-        });
-        if(this.config.autoResize) 
-            window.addEventListener('resize', () => {
-                this.loadImages().then(() => {
-                    this.container.style.setProperty('--gallery-max-cols', this.styles['max-cols']);
-                });
-            });
+  /**
+   * Creates an image gallery
+   * @param {String} container Container element
+   * @param {{images: string[], captions: string[], zoom: boolean, gap: string, autoResize: boolean, static: boolean, minColWidth: number}} config
+   * @param {{}} styles Style configuration
+   * @param {boolean} [trigger=true] Active the event
+   */
+  constructor(container, config = {}, styles = {}, trigger = true) {
+    if (!isLoaded()) return;
+    this.container = document.querySelector(container);
+
+    // Defaults
+    this.config = {
+      images: [],
+      captions: [],
+      zoom: false,
+      gap: '12px',           // sensible default (not 0)
+      autoResize: true,      // enable unless explicitly disabled
+      static: false,
+      minColWidth: 240       // fallback min column width if we can't infer from images
+    };
+
+    // CSS var-backed styles (numbers/lengths, not '1fr')
+    this.styles = {
+      'max-cols': '1',       // must be an integer string
+      'gap': this.config.gap
+    };
+
+    Object.assign(this.config, config);
+    Object.assign(this.styles, styles);
+
+    // ---- Priority fix: JS styles win; only fall back to element's INLINE CSS var ----
+    const hasStyleCols =
+      this.styles &&
+      this.styles['max-cols'] != null &&
+      String(this.styles['max-cols']).trim() !== '';
+
+    // Only read the element's own inline style, not computed stylesheet defaults
+    const inlineCols = (this.container instanceof HTMLElement)
+      ? this.container.style.getPropertyValue('--gallery-max-cols')
+      : '';
+
+    this.userDefinedCols = hasStyleCols || (!!inlineCols && inlineCols.trim() !== '');
+
+    // If the caller didn't supply JS styles but the element has an inline var, use it
+    if (!hasStyleCols && inlineCols && inlineCols.trim()) {
+      this.styles['max-cols'] = inlineCols.trim();
     }
 
-    async loadImages() {
-        const promises = this.config.images.map(src => {
-            return new Promise(resolve => {
-                const img = new Image();
-                img.src = src;
-                img.onload = () => resolve(img);
-            });
-        });
-        const images = await Promise.all(promises);
-        const totalWidth = images.reduce((acc, img) => acc + img.naturalWidth, 0);
-        const maxCols = Math.floor(document.documentElement.clientWidth / (totalWidth / images.length));
-        this.styles['max-cols'] = `${maxCols}`;
+    // Sanitize gap
+    if (!/^\d+(\.\d+)?(px|rem|em|%)$/.test(String(this.styles['gap']))) {
+      this.styles['gap'] = '12px';
     }
-    init(){
-        this.container.classList.add('gallery');
-        if(this.config.images.length>this.config.rows*this.config.cols)  return;
-        Object.keys(this.styles).forEach(i=>{
-            this.container.style.setProperty(`--gallery-${i}`,this.styles[i]);
-        });
-        this.container.innerHTML += '<div class="gallery-grid">'+this.config.images.map((image, index) => `
-            <div class="gallery-item">
-                <img class="image" src="${image}" alt="${this.config.captions[index]??'img_'+(index+1)}"/>
-            </div>
-        `).join('')+"</div>";
-        if(this.config.zoom) this.#createZoom();
-        if(this.config.captions.length>0) this.#createCaptions();
-    }
-    getInstance(){
-        return this;
-    }
-    #createZoom(){
-        if(this.config.static) this.container.classList.add('static');
-        this.container.classList.add('zoom');
-        const overlay = document.createElement('div');
-        overlay.classList.add('gallery-overlay');
-        if(!this.config.static){
-            overlay.addEventListener('click',()=>{
-                overlay.classList.remove('opened');
-                const caption = overlay.querySelector('.gallery-zoom-caption');
-                if (caption) caption.remove();
-            });
+
+    // Load images, compute columns, then apply styles and init
+    this.loadImages().then(() => {
+      this.applyStyles();
+      if (this.container instanceof HTMLElement && trigger) this.init?.();
+    });
+
+    // Auto-resize: recalc cols on container resize (preferred) or window resize
+    if (this.config.autoResize && this.container instanceof HTMLElement) {
+      const recalc = this._debounce(async () => {
+        if (!this.userDefinedCols) {
+          await this.loadImages();
         }
-        const closeButton = document.createElement('button');
-        closeButton.innerText = 'x';
-        closeButton.classList.add('gallery-close-button');
-        closeButton.addEventListener('click', () => {
-            overlay.classList.remove('opened');
-            const caption = overlay.querySelector('.gallery-zoom-caption');
-            if (caption) caption.remove();
-        });
-        overlay.appendChild(closeButton);
+        this.applyStyles();
+      }, 120);
 
-        const image = document.createElement('img');
-        image.classList.add('gallery-zoom-image');
-        overlay.appendChild(image);
-        this.container.appendChild(overlay);
-        const images = this.container.querySelectorAll('.gallery-item');
-        images.forEach((img, index) => {
-            img.addEventListener('click', () => {
-                overlay.classList.add('opened');
-                image.src = this.config.images[index];
-                if (this.config.captions.length > 0) {
-                    const caption = document.createElement('div');
-                    caption.classList.add('gallery-zoom-caption');
-                    caption.innerText = this.config.captions[index] || '';
-                    overlay.appendChild(caption);
-                }
-            });
-        });
+      if ('ResizeObserver' in window) {
+        this._ro = new ResizeObserver(() => recalc());
+        this._ro.observe(this.container);
+      } else {
+        window.addEventListener('resize', recalc);
+      }
     }
-    #createCaptions() {
-        const items = this.container.querySelectorAll('.gallery-item');
-        items.forEach((item, index) => {
-            const caption = document.createElement('caption');
-            caption.classList.add('gallery-caption');
-            caption.innerText = this.config.captions[index] || '';
-            item.appendChild(caption);
-        });
+  }
+
+  /**
+   * Loads images (if provided) and computes a safe column count (>= 1).
+   * Returns the computed column count.
+   */
+  async loadImages() {
+    // Respect explicit user-defined column count and skip auto-compute
+    if (this.userDefinedCols) {
+      const n = parseInt(String(this.styles['max-cols'] ?? '1'), 10);
+      const safe = Number.isFinite(n) && n > 0 ? n : 1;
+      this.styles['max-cols'] = String(safe);
+      return safe;
     }
+
+    const urls = Array.isArray(this.config.images) ? this.config.images : [];
+
+    const containerWidth =
+      (this.container?.clientWidth) ||
+      document.documentElement.clientWidth ||
+      window.innerWidth ||
+      1024; // robust fallback
+
+    // No images provided -> derive cols from minColWidth
+    if (urls.length === 0) {
+      const cols = Math.max(1, Math.floor(containerWidth / Math.max(1, this.config.minColWidth)));
+      this.styles['max-cols'] = String(cols);
+      return cols;
+    }
+
+    // Load images safely
+    const images = await Promise.all(
+      urls.map(src => new Promise(resolve => {
+        const img = new Image();
+        img.src = src;
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(img); // keep pipeline moving even if one fails
+      }))
+    );
+
+    const widths = images.map(img => img.naturalWidth || 0);
+    const count = Math.max(1, widths.length);
+    const totalWidth = widths.reduce((a, b) => a + b, 0);
+
+    // Average width fallback -> minColWidth if images lack sizes
+    const avgWidth = totalWidth > 0 ? (totalWidth / count) : this.config.minColWidth;
+
+    // Compute columns and clamp to >= 1
+    const cols = Math.max(1, Math.floor(containerWidth / Math.max(1, avgWidth)));
+    this.styles['max-cols'] = String(cols);
+    return cols;
+  }
+
+  /** Applies CSS custom properties to the container */
+  applyStyles() {
+    if (!(this.container instanceof HTMLElement)) return;
+
+    // Clamp to a safe integer >= 1
+    const n = parseInt(String(this.styles['max-cols'] ?? '1'), 10);
+    const safe = Number.isFinite(n) && n > 0 ? n : 1;
+
+    this.container.style.setProperty('--gallery-max-cols', String(safe));
+    this.container.style.setProperty('--gallery-gap', String(this.styles['gap']));
+  }
+
+  /** Small debounce helper */
+  _debounce(fn, delay = 120) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), delay);
+    };
+  }
+
+  init(){
+    this.container.classList.add('gallery');
+    Object.keys(this.styles).forEach(i=>{
+      this.container.style.setProperty(`--gallery-${i}`,this.styles[i]);
+    });
+    this.container.innerHTML += '<div class="gallery-grid">'+this.config.images.map((image, index) => `
+      <div class="gallery-item">
+        <img class="image" src="${image}" alt="${this.config.captions[index]??'img_'+(index+1)}"/>
+      </div>
+    `).join('')+"</div>";
+    if(this.config.zoom) this.#createZoom();
+    if(this.config.captions.length>0) this.#createCaptions();
+  }
+
+  getInstance(){
+    return this;
+  }
+
+  #createZoom(){
+    if(this.config.static) this.container.classList.add('static');
+    this.container.classList.add('zoom');
+    const overlay = document.createElement('div');
+    overlay.classList.add('gallery-overlay');
+    if(!this.config.static){
+      overlay.addEventListener('click',()=>{
+        overlay.classList.remove('opened');
+        const caption = overlay.querySelector('.gallery-zoom-caption');
+        if (caption) caption.remove();
+      });
+    }
+    const closeButton = document.createElement('button');
+    closeButton.innerText = 'x';
+    closeButton.classList.add('gallery-close-button');
+    closeButton.addEventListener('click', () => {
+      overlay.classList.remove('opened');
+      const caption = overlay.querySelector('.gallery-zoom-caption');
+      if (caption) caption.remove();
+    });
+    overlay.appendChild(closeButton);
+    const image = document.createElement('img');
+    image.classList.add('gallery-zoom-image');
+    overlay.appendChild(image);
+    this.container.appendChild(overlay);
+
+    const images = this.container.querySelectorAll('.gallery-item');
+    images.forEach((img, index) => {
+      img.addEventListener('click', () => {
+        overlay.classList.add('opened');
+        image.src = this.config.images[index];
+        if (this.config.captions.length > 0) {
+          const caption = document.createElement('div');
+          caption.classList.add('gallery-zoom-caption');
+          caption.innerText = this.config.captions[index] || '';
+          overlay.appendChild(caption);
+        }
+      });
+    });
+  }
+
+  #createCaptions() {
+    const items = this.container.querySelectorAll('.gallery-item');
+    items.forEach((item, index) => {
+      const caption = document.createElement('caption');
+      caption.classList.add('gallery-caption');
+      caption.innerText = this.config.captions[index] || '';
+      item.appendChild(caption);
+    });
+  }
 };
 
 export class VideoPlayer{
@@ -2448,6 +2551,318 @@ export class AudioPlayer{
                 });
             });
         },300);
+    }
+}
+
+// --- Before & After: fully functional, accessible, pointer + keyboard ---
+export class BeforeAndAfter {
+  /**
+   * Creates a before/after image comparison viewer
+   * @param {String} container
+   * @param {{
+   *   before: string,
+   *   after: string,
+   *   orientation: 'horizontal'|'vertical',
+   *   start?: number,                 // 0..100 (percent); default 50
+   *   handle?: boolean,               // show handle; default true
+   *   handleStyle?: {                 // optional handle theming
+   *     backgroundColor?: string,     // line color
+   *     width?: string,               // line thickness, e.g. '2px'
+   *     knobSize?: string,            // e.g. '28px'
+   *     iconColor?: string            // icon color inside knob
+   *   }
+   * }} config
+   * @param {{}} styles  // extra CSS variables -> --before-after-*
+   */
+  constructor(container, config = {}, styles = {}) {
+    if (!isLoaded()) return;
+
+    this.container = document.querySelector(container);
+    if (!(this.container instanceof HTMLElement)) return;
+
+    // Defaults
+    this.config = {
+      before: '',
+      after: '',
+      orientation: 'horizontal',
+      start: 50,
+      handle: true,
+      handleStyle: {
+        backgroundColor: '#ffffff',
+        width: '2px',
+        knobSize: '28px',
+        iconColor: '#333'
+      }
+    };
+
+    this.styles = {};
+    Object.assign(this.config, config);
+    Object.assign(this.styles, styles);
+
+    // Internal state
+    this._dragging = false;
+    this._pos = this._clampNumber(Number(this.config.start) || 50);
+    this._onPointerMove = this._onPointerMove.bind(this);
+    this._onPointerUp = this._onPointerUp.bind(this);
+    this._onKeyDown = this._onKeyDown.bind(this);
+
+    // Init after a tiny delay to ensure stylesheets are present (keeps parity with your lib)
+    setTimeout(() => {
+      this.init();
+    }, 0);
+  }
+
+  init() {
+    
+    // Apply handle style as CSS variables
+    const hs = this.config.handleStyle || {};
+    this.container.style.setProperty('--before-after-bar-width', hs.width || '2px');
+    this.container.style.setProperty('--before-after-handle-bg', hs.backgroundColor || '#ffffff');
+    this.container.style.setProperty('--before-after-knob-size', hs.knobSize || '28px');
+    this.container.style.setProperty('--before-after-handle-icon', hs.iconColor || '#333');
+
+    // Apply developer-provided CSS custom properties
+    Object.keys(this.styles).forEach(k => {
+      this.container.style.setProperty(`--before-after-${k}`, String(this.styles[k]));
+    });
+
+    // Orientation
+    const isVertical = (this.config.orientation === 'vertical');
+    this.container.classList.add('before-after', isVertical ? 'vertical' : 'horizontal');
+
+    // DOM
+    this.container.innerHTML = `
+      <div class="before" aria-hidden="true">
+        <img src="${this.config.before}" alt="Before"/>
+      </div>
+      <div class="after">
+        <img src="${this.config.after}" alt="After"/>
+      </div>
+      ${this.config.handle ? `
+        <div class="handle" role="separator" aria-orientation="${isVertical ? 'vertical' : 'horizontal'}" tabindex="0" aria-label="Drag to compare">
+          <span class="handle-dot" aria-hidden="true"></span>
+        </div>` : ''}
+    `;
+
+    // Cache elements
+    this.$after = this.container.querySelector('.after');
+    this.$handle = this.container.querySelector('.handle');
+
+    // Initial position
+    this.setPosition(this._pos, false);
+
+    // Bind interactions
+    this._bindEvents();
+  }
+
+  // --- Public API ---
+  getInstance() { return this; }
+
+  /**
+   * Set the slider position (0..100)
+   * @param {number} percent
+   * @param {boolean} [announce] whether to set aria-valuenow on the handle
+   */
+  setPosition(percent, announce = true) {
+    this._pos = this._clampNumber(percent);
+
+    if (this._rafId) cancelAnimationFrame(this._rafId);
+    this._rafId = requestAnimationFrame(() => {
+        this.container.style.setProperty('--before-after-pos', `${this._pos}%`);
+        if (announce && this.$handle) {
+        this.$handle.setAttribute('aria-valuenow', String(Math.round(this._pos)));
+        }
+        this._rafId = null;   // (already added previously for rAF)
+        this._supportsPointer = 'PointerEvent' in window;
+    });
+    }
+
+
+  /**
+   * Clean up listeners (optional)
+   */
+  destroy() {
+    if (this.$handle) {
+      this.$handle.removeEventListener('pointerdown', this._onPointerDown);
+      this.$handle.removeEventListener('keydown', this._onKeyDown);
+    }
+    this.container.removeEventListener('pointerdown', this._onTrackPointerDown);
+    window.removeEventListener('pointermove', this._onPointerMove);
+    window.removeEventListener('pointerup', this._onPointerUp);
+    window.removeEventListener('pointercancel', this._onPointerUp);
+  }
+
+  // --- Internals ---
+  _bindEvents() {
+    // Allow clicking anywhere on the component to reposition
+    this._onTrackPointerDown = (ev) => {
+      // Ignore when starting drag on the knob — that will be handled separately
+      const isKnob = ev.target.closest('.handle');
+      const rect = this.container.getBoundingClientRect();
+      this._updateFromPoint(ev, rect);
+      if (!isKnob && this.$handle) {
+        // Also start dragging if the user pressed on the track
+        this._dragging = true;
+        this.$handle.setPointerCapture?.(ev.pointerId);
+      }
+    };
+
+    this.container.addEventListener('pointerdown', this._onTrackPointerDown);
+
+    if (this.$handle) {
+      this._onPointerDown = (ev) => {
+        this._dragging = true;
+        this.$handle.setPointerCapture?.(ev.pointerId);
+        ev.preventDefault();
+      };
+
+      this.$handle.addEventListener('pointerdown', this._onPointerDown);
+      this.$handle.addEventListener('keydown', this._onKeyDown);
+    }
+
+    window.addEventListener('pointermove', this._onPointerMove);
+    window.addEventListener('pointerup', this._onPointerUp);
+    window.addEventListener('pointercancel', this._onPointerUp);
+    if (!this._supportsPointer) this._bindTouchFallback();
+  }
+
+  _onPointerMove(ev) {
+    if (!this._dragging) return;
+    const rect = this.container.getBoundingClientRect();
+    this._updateFromPoint(ev, rect);
+  }
+
+  _onPointerUp() {
+    this._dragging = false;
+  }
+
+  _onKeyDown(ev) {
+    const key = (ev.key || '').toLowerCase();
+    const step = 2; // percent per keypress
+    const big = 10;
+
+    // Keep focus behavior predictable
+    if (['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key)) {
+      ev.preventDefault();
+      ev.stopPropagation();
+    }
+
+    const isVertical = this.container.classList.contains('vertical');
+    const dirLeft  = (!isVertical && key === 'arrowleft') || (isVertical && key === 'arrowup');
+    const dirRight = (!isVertical && key === 'arrowright') || (isVertical && key === 'arrowdown');
+
+    if (dirLeft)  this.setPosition(this._pos - step);
+    if (dirRight) this.setPosition(this._pos + step);
+    if (key === 'home') this.setPosition(0);
+    if (key === 'end')  this.setPosition(100);
+    if (key === 'pageup')   this.setPosition(this._pos + big);
+    if (key === 'pagedown') this.setPosition(this._pos - big);
+  }
+
+  _updateFromPoint(ev, rect) {
+    const isVertical = this.container.classList.contains('vertical');
+    let p;
+
+    if (!isVertical) {
+      const x = Math.max(rect.left, Math.min(ev.clientX, rect.right));
+      p = ((x - rect.left) / rect.width) * 100;
+    } else {
+      const y = Math.max(rect.top, Math.min(ev.clientY, rect.bottom));
+      p = ((y - rect.top) / rect.height) * 100;
+    }
+
+    this.setPosition(p);
+  }
+
+  _clampNumber(n) {
+    n = Number.isFinite(n) ? n : 50;
+    return Math.max(0, Math.min(100, n));
+  }
+
+  _bindTouchFallback() {
+    const getPt = (ev) => {
+        const t = ev.touches?.[0] || ev.changedTouches?.[0];
+        return t ? { clientX: t.clientX, clientY: t.clientY } : { clientX: 0, clientY: 0 };
+    };
+
+    const onStart = (ev) => {
+        this._dragging = true;
+            const rect = this.container.getBoundingClientRect();
+            this._updateFromPoint(getPt(ev), rect);
+            // prevent scrolling while dragging
+            ev.preventDefault();
+        };
+
+        const onMove = (ev) => {
+            if (!this._dragging) return;
+            const rect = this.container.getBoundingClientRect();
+            this._updateFromPoint(getPt(ev), rect);
+            ev.preventDefault();
+        };
+
+        const onEnd = () => { this._dragging = false; };
+
+        // Use passive: false so preventDefault() is honored on touchmove in iOS
+        this.container.addEventListener('touchstart', onStart, { passive: false });
+        window.addEventListener('touchmove', onMove, { passive: false });
+        window.addEventListener('touchend', onEnd, { passive: true });
+        window.addEventListener('touchcancel', onEnd, { passive: true });
+    }
+    /**
+     * Generates event on Before & After viewer
+     * @param {String} event  'before' | 'after' | 'position'
+     * @param {Function} callback  Callback to invoke.
+     *
+     * Semantics:
+     *  - 'after': Fires once when position === 0 (after image fully visible)
+     *  - 'before': Fires once when position === 100 (before image fully visible)
+     *  - 'position': Fires on every position change with current position (0..100)
+     */
+    on(event, callback) {
+        // Register callback
+        if (!this._eventTracker) this._eventTracker = {};
+        if (!this._eventTracker[event]) this._eventTracker[event] = [];
+        if (typeof callback === 'function') this._eventTracker[event].push(callback);
+
+        // Hook into position changes once
+        if (!this._positionHooked) {
+            const originalSetPosition = this.setPosition?.bind(this) || ((percent) => { this._pos = percent; });
+
+            // Fire-once flags for edges
+            this._edgeFired = this._edgeFired || { after: false, before: false };
+
+            this.setPosition = (percent, announce) => {
+                // Let the original setter update/clamp this._pos
+                originalSetPosition(percent, announce);
+
+                const newPos = this._pos;
+
+                // Always emit position updates
+                if (this._eventTracker['position']) {
+                    this._eventTracker['position'].forEach(cb => cb(newPos));
+                }
+
+                // AFTER: trigger once when we reach exactly 0
+                if (newPos === 0 && !this._edgeFired.after) {
+                    this._edgeFired.after = true;
+                    this._edgeFired.before = false;
+                    if (this._eventTracker['after']) {
+                        this._eventTracker['after'].forEach(cb => cb(newPos));
+                    }
+                }
+
+                // BEFORE: trigger once when we reach exactly 100
+                if (newPos === 100 && !this._edgeFired.before) {
+                    this._edgeFired.before = true;
+                    this._edgeFired.after = false;
+                    if (this._eventTracker['before']) {
+                        this._eventTracker['before'].forEach(cb => cb(newPos));
+                    }
+                }
+            };
+
+            this._positionHooked = true;
+        }
     }
 }
 //Finalize the URL

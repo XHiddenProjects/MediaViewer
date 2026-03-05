@@ -9,3 +9,75 @@
         top: calc(100% - 10%);
     }
 }
+
+@media (resolution <= 1dppx) {
+  .before-after.horizontal .handle { transform: translateX(calc(-50% + 0.5px)); }
+  .before-after.vertical   .handle { transform: translateY(calc(-50% + 0.5px)); }
+}
+
+/* Touch-only: phones & most tablets */
+@media (hover: none) and (pointer: coarse) {
+  /* Make touch drag intentional and prevent scroll/overscroll while dragging */
+  .before-after,
+  .before-after .handle {
+    touch-action: none;         /* modern Pointer Events stack */
+    -ms-touch-action: none;     /* Edge Legacy */
+  }
+
+  .before-after {
+    overscroll-behavior: none;  /* stop scroll chaining / pull-to-refresh jitter */
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Nice-to-have: ensure the images don't intercept touches or long-press menus */
+  .before-after .before img,
+  .before-after .after img {
+    pointer-events: none;
+    -webkit-touch-callout: none;
+  }
+}
+
+/* Older iOS Safari safety net */
+@supports (-webkit-touch-callout: none) {
+  @media (hover: none) {
+    .before-after,
+    .before-after .handle {
+      touch-action: none;
+      -ms-touch-action: none;
+    }
+
+    .before-after {
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    .before-after .before img,
+    .before-after .after img {
+      pointer-events: none;
+      -webkit-touch-callout: none;
+    }
+  }
+}
+
+/* Width-based fallback for legacy browsers */
+@media screen and (max-width: 768px) {
+  .before-after,
+  .before-after .handle {
+    touch-action: none;
+    -ms-touch-action: none;
+  }
+
+  .before-after {
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  .before-after .before img,
+  .before-after .after img {
+    pointer-events: none;
+    -webkit-touch-callout: none;
+  }
+}

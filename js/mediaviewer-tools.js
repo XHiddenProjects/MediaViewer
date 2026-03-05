@@ -1,6 +1,6 @@
 /**
  * @package MediaViewer
- * @version 1.2.5
+ * @version 1.2.6
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -479,11 +479,11 @@ export const uniqueid = (prefix='', extend=false)=>{
 /**
  * Parse string to boolean
  * @param {String} str String
- * @param {Boolean} defNull Default value on _null_
+ * @param {Boolean} [defNull=true] Default value on _null_
  * @returns {Boolean} True if the string is "true", otherwise False
  * @throws Invalid boolean string
  */
-export const parseBoolean = (str,defNull=false)=>{
+export const parseBoolean = (str,defNull=true)=>{
     if(str.match(/^(true|false|)$/gi)) return (defNull ? (str.match(/^(true|)$/gi) ? true : false) : (str.match(/^true$/gi) ? true : false));
     else throw new Error('Must be a True/False');
 }

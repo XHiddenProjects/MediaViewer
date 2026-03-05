@@ -1,4 +1,4 @@
-import {startup, VideoPlayer} from '../../js/es6/mediaviewer.js';
+import {startup, VideoPlayer} from '../js/mediaviewer.js';
 startup();
 const tracks = [{
     src:'tracks/chapters.vtt',

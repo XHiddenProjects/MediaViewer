@@ -1,4 +1,4 @@
-import { startup, Carousel} from "../../js/es6/mediaviewer.js";
+import { startup, Carousel} from "../js/mediaviewer.js";
 startup();
 new Carousel('.demo',{
     slides: ['images/img1.jpg', 'images/img2.jpg','images/img3.jpg'],

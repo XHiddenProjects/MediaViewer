@@ -80,6 +80,10 @@
     --audio-captions-color: #fefefe;
     --audio-loop-active: #74c039;
 
+    
+    /* BEFORE AND AFTER */
+    --before-after-handle-bg: #fff;
+    --before-after-handle-icon: #333;
 }
 /*main*/
 .carousel,
@@ -250,8 +254,8 @@ right:0;
 }
 .gallery .gallery-grid{
     display: grid;
-    grid-template-columns: repeat(var(--gallery-max-cols),1fr);
-    gap: var(--gallery-gap);
+    grid-template-columns: repeat(var(--gallery-max-cols,1),minmax(0,1fr));
+    gap: var(--gallery-gap,12px);
 }
 .gallery-grid .gallery-item{
     position: relative;
@@ -1484,4 +1488,150 @@ right:0;
     content: "\f04b";
     transform: translateX(22px);
     font-size: 15px;
+}
+
+/* ---------- Before & After ---------- */
+.before-after {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* The live position (percent) is updated by JS */
+  --before-after-pos: 50%;
+  --before-after-bar-width: 2px;      /* line thickness */
+  --before-after-knob-size: 28px;     /* knob diameter */
+}
+
+/* Stacking: BEFORE at the bottom, AFTER on top (clipped) */
+.before-after .before,
+.before-after .after {
+  position: absolute;
+  inset: 0;
+}
+
+.before-after .before img,
+.before-after .after img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Horizontal: reveal AFTER from the left by width */
+.before-after.horizontal .after {
+  width: var(--before-after-pos);
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Vertical: reveal AFTER from the top by height */
+.before-after.vertical .after {
+  height: var(--before-after-pos);
+  width: 100%;
+  overflow: hidden;
+}
+
+/* The draggable separator line */
+.before-after .handle {
+  position: absolute;
+  background: var(--before-after-handle-bg);
+  cursor: pointer;
+  z-index: 2;
+  outline: none;
+}
+
+/* Horizontal: full height, centered at --pos (translateX to center the line) */
+.before-after.horizontal .handle {
+  top: 0;
+  height: 100%;
+  width: var(--before-after-bar-width);
+  left: var(--before-after-pos);
+  transform: translateX(-50%);
+}
+
+/* Vertical: full width, centered at --pos (translateY to center the line) */
+.before-after.vertical .handle {
+  left: 0;
+  width: 100%;
+  height: var(--before-after-bar-width);
+  top: var(--before-after-pos);
+  transform: translateY(-50%);
+}
+
+/* Circular knob that sits on the line (better target for touch) */
+.before-after .handle .handle-dot {
+  position: absolute;
+  width: var(--before-after-knob-size);
+  height: var(--before-after-knob-size);
+  border-radius: 50%;
+  background: var(--before-after-handle-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--before-after-handle-icon);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  font-family: var(--fa-style-family-classic);
+}
+
+/* Place the knob in the middle of the line for each orientation */
+.before-after.horizontal .handle .handle-dot {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.before-after.vertical .handle .handle-dot {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* Font Awesome left-right (you can change to arrows if you prefer) */
+.before-after .handle .handle-dot::before {
+  content: '\f07e';
+  font-weight: 900;
+}
+
+.before-after .handle[aria-orientation="vertical"] .handle-dot::before {
+  content: '\e6bf';
+  font-weight: 900;
+}
+
+/* Keyboard focus ring */
+.before-after .handle:focus-visible .handle-dot {
+  box-shadow: 0 0 0 3px rgba(21, 156, 228, 0.45), 0 2px 8px rgba(0,0,0,0.25);
+}
+
+/* Make sure the two layers have a fixed stacking order */
+.before-after .before { z-index: 0; }
+.before-after .after  { z-index: 1; will-change: clip-path; contain: paint; }
+
+/* Horizontal: reveal the left portion by clipping the right side */
+.before-after.horizontal .after {
+  /* Right inset = (100% - progress); left/top/bottom = 0 */
+  clip-path: inset(0 calc(100% - var(--before-after-pos)) 0 0);
+  -webkit-clip-path: inset(0 calc(100% - var(--before-after-pos)) 0 0);
+  width: 100%;  /* keep full size, clipping does the reveal */
+  height: 100%;
+}
+
+/* Vertical: reveal the top portion by clipping the bottom side */
+.before-after.vertical .after {
+  /* Bottom inset = (100% - progress) */
+  clip-path: inset(0 0 calc(100% - var(--before-after-pos)) 0);
+  -webkit-clip-path: inset(0 0 calc(100% - var(--before-after-pos)) 0);
+  width: 100%;
+  height: 100%;
+}
+
+/* Keep images out of the event chain and on their own compositor layer */
+.before-after .before img,
+.before-after .after img {
+  display: block;
+  pointer-events: none;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Smoother handle movement (subpixel jitter reduction) */
+.before-after .handle {
+  will-change: left, top;
 }

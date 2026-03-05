@@ -1,5 +1,5 @@
 import { Extension, Config, Styles } from "./js/mediaviewer-extension.js";
-import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel} from "./js/mediaviewer.js";
+import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel, BeforeAndAfter} from "./js/mediaviewer.js";
 import { uniqueid, parseBoolean } from "./js/mediaviewer-tools.js";
 startup();
 export const autoloader = class extends Extension{
@@ -11,8 +11,8 @@ export const autoloader = class extends Extension{
 
 window.addEventListener('load',()=>{
 
-    let gallery, carousel, video_player, audio_player;
-    document.querySelectorAll('[media-video-player], [media-audio-player], [media-gallery], [media-carousel]')
+    let gallery, carousel, video_player, audio_player, before_after;
+    document.querySelectorAll('[media-video-player], [media-audio-player], [media-gallery], [media-carousel], [media-before-after]')
     .forEach(e=>{
         if(!e.id) e.id = uniqueid();
         if(e.hasAttribute('media-carousel')){
@@ -62,7 +62,7 @@ window.addEventListener('load',()=>{
                     captions: Array.from(e.querySelectorAll('img')).map(i => i.getAttribute('data-caption')||i.alt) ?? [],
                     static: (e.hasAttribute('data-static') ? parseBoolean(e.getAttribute('data-static')) : false),
                     zoom: (e.hasAttribute('data-zoom') ? parseBoolean(e.getAttribute('data-zoom')) : false),
-                    autoResize: (e.hasAttribute('data-autoResize') ? parseBoolean(e.getAttribute('data-autoResize')) : true)
+                    autoResize: (e.hasAttribute('data-autoResize') ? parseBoolean(e.getAttribute('data-autoResize')) : false)
                 }
             },{
                 Gallery: (
@@ -205,6 +205,33 @@ window.addEventListener('load',()=>{
             audio_player.include(AudioPlayer);
             audio_player.use(AudioPlayer).apply();
             e.removeAttribute('data-tracks');
+            e.removeAttribute('data-styles');
+        }else if(e.hasAttribute('media-before-after')){
+            before_after = new autoloader(`[id="${e.id}"]`,{
+                BeforeAndAfter:{
+                    before: e.getAttribute('before') || (e.querySelectorAll('img')[0] ? e.querySelectorAll('img')[0].getAttribute('src') : ''),
+                    after: e.getAttribute('after') || (e.querySelectorAll('img')[1] ? e.querySelectorAll('img')[1].getAttribute('src') : '')
+                }
+            },{
+                BeforeAndAfter: (
+                    e.hasAttribute('data-styles')
+                        ? Object.fromEntries(
+                            e.getAttribute('data-styles')
+                                .split(';')
+                                .map(s => s.trim())
+                                .filter(Boolean)
+                                .map(pair => {
+                                    const [key, value] = pair.split(':').map(x => x.trim());
+                                    return [key, value];
+                                })
+                        )
+                        : {}
+                )
+            })
+            before_after.include(BeforeAndAfter);
+            before_after.use(BeforeAndAfter).apply();
+            e.removeAttribute('data-before');
+            e.removeAttribute('data-after');
             e.removeAttribute('data-styles');
         }
     });
