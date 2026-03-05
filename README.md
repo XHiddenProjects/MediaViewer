@@ -10,7 +10,7 @@ A web-friendly media viewing library that's good for your website for both PC/Ma
 * Gallery
 * VideoPlayer
 * AudioPlayer
-* Before and After
+* Before and After slider
 
 ## Requirements
 These are requirements that will be injected into your website
