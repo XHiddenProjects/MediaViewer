@@ -1,7 +1,7 @@
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.2.4
+ * @version 1.2.5
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -926,7 +926,13 @@ x.addEventListener('animationend', () => { x.classList.remove('toggled'); }, { o
                 const currentIndex = playlistItems.findIndex(item => item.getAttribute('data-video') === currentVideoID);
                 if (currentIndex !== -1) {
                     const nextIndex = (currentIndex + 1) % playlistItems.length;
-                    playlistItems[nextIndex].querySelector('img').click();
+                    const onCanPlay = () => {
+                        video.removeEventListener('canplay', onCanPlay);
+                        const p = video.play();
+                        if (p && typeof p.catch === 'function') p.catch(() => {});
+                    };
+                    video.addEventListener('canplay', onCanPlay, { once: true });
+                    playlistItems[nextIndex].click();
                 }
             }
         });
@@ -1104,6 +1110,25 @@ x.addEventListener('animationend', () => { x.classList.remove('toggled'); }, { o
                 }
             }
         });
+
+  // Next-video button should advance to the next playlist item
+  this.container.querySelector('.next-video')?.addEventListener('click', () => {
+    const items = Array.from(this.container.querySelectorAll('.playlist-item'));
+    if (items.length === 0) return;
+    const currentVideoID = new URLSearchParams(window.location.search).get('v');
+    const currentIndex = items.findIndex(el => el.getAttribute('data-video') === currentVideoID);
+    const nextIndex = (currentIndex + 1) % items.length;
+    items[nextIndex].click();
+    if (this.config.autoplay) {
+      const v = this.container.querySelector('.video-frame');
+      const onCanPlay = () => {
+        v.removeEventListener('canplay', onCanPlay);
+        const p = v.play();
+        if (p && typeof p.catch === 'function') p.catch(() => {});
+      };
+      v.addEventListener('canplay', onCanPlay, { once: true });
+    }
+  });
 
         this.container.querySelector('.pip-expand').addEventListener('click',()=>{
             this.container.classList.remove('video-pip');
@@ -2375,8 +2400,10 @@ export class AudioPlayer{
             if(this.config.autoplay) this.container.querySelector('.play-pause').click();
         });
 
-        this.container.querySelector('audio').addEventListener('ended',()=>{
-            this.container.querySelector('.audio-next').click();
+        this.container.querySelector('audio').addEventListener('ended', () => {
+            if (this.config.autoplay) {
+                this.container.querySelector('.audio-next').click();
+            }
         });
 
         this.container.querySelector('.audio-loop').addEventListener('click',(e)=>{
@@ -2389,10 +2416,10 @@ export class AudioPlayer{
             e.target.parentNode.classList.toggle('active');
         });
 
-        this.container.querySelector('.autoplay').addEventListener('input',function(){
-            window.localStorage.setItem('mediaViewer_audio_config',JSON.stringify({
-                'autoplay': this.checked
-            }));
+        this.container.querySelector('.autoplay').addEventListener('input', (e) => {
+            this.config.autoplay = e.target.checked;
+            window.localStorage.setItem('mediaViewer_audio_config', JSON.stringify({ autoplay: e.target.checked }));
+            e.target.parentNode.title = `Autoplay is ${e.target.checked ? 'on' : 'off'}`;
         });
 
     }
