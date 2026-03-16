@@ -3415,6 +3415,17 @@ this.container.querySelectorAll('.timeline-item').forEach((el) => io.observe(el)
 
   getInstance(){ return this; }
 
+  #escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/`/g, '&#96;');
+  }
+
   #renderItem(it = {}) {
     const date   = it.date   ?? '';
     const title  = it.title  ?? '';
@@ -3423,19 +3434,25 @@ this.container.querySelectorAll('.timeline-item').forEach((el) => io.observe(el)
     const href   = it.href   ?? '';
     const html   = it.html   ?? '';
 
-    const nodeIcon = icon
-      ? `<i class="${icon}" aria-hidden="true"></i>`
+    const safeDate  = this.#escapeHtml(date);
+    const safeTitle = this.#escapeHtml(title);
+    const safeBadge = this.#escapeHtml(badge);
+    const safeIcon  = this.#escapeHtml(icon);
+    const safeHref  = this.#escapeHtml(href);
+
+    const nodeIcon = safeIcon
+      ? `<i class="${safeIcon}" aria-hidden="true"></i>`
       : '';
 
     const CardTag = href ? 'a' : 'div';
-    const hrefAttr = href ? ` href="${href}"` : '';
+    const hrefAttr = href ? ` href="${safeHref}"` : '';
 
     return `
       <li class="timeline-item is-outview" role="listitem">
         <span class="timeline-node">${nodeIcon}</span>
         <${CardTag} class="timeline-card"${hrefAttr}>
-          ${date ? `<p class="timeline-date">${date}</p>` : ''}
-          ${title ? `<h4 class="timeline-title">${title}${badge ? `<span class="timeline-badge">${badge}</span>` : ''}</h4>` : ''}
+          ${date ? `<p class="timeline-date">${safeDate}</p>` : ''}
+          ${title ? `<h4 class="timeline-title">${safeTitle}${badge ? `<span class="timeline-badge">${safeBadge}</span>` : ''}</h4>` : ''}
           <div class="timeline-body">${html}</div>
         </${CardTag}>
       </li>
