@@ -3356,12 +3356,18 @@ export class Timeline {
       : this.#parseChildItems(this.container);
 
     // Render
-   this.container.innerHTML = `
-    <span class="timeline-track" aria-hidden="true"></span>
-    <ol class="timeline-list" role="list">
-        ${items.map(it => this.#renderItem(it)).join('')}
-    </ol>
-    `;
+   
+    this.container.textContent = ''; // wipe safely
+    const track = document.createElement('span');
+    track.className = 'timeline-track';
+    track.setAttribute('aria-hidden', 'true');
+    this.container.appendChild(track);
+    const list = document.createElement('ol');
+    list.className = 'timeline-list';
+    list.setAttribute('role', 'list');
+    this.container.appendChild(list);
+    items.forEach((it) => list.appendChild(this.#renderItemNode(it)));
+
 
     
 // Seed initial state: everything starts out of view
@@ -3415,49 +3421,55 @@ this.container.querySelectorAll('.timeline-item').forEach((el) => io.observe(el)
 
   getInstance(){ return this; }
 
-  #escapeHtml(value) {
-    if (value === null || value === undefined) return '';
-    return String(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;')
-      .replace(/`/g, '&#96;');
-  }
+  
+ #renderItemNode(it = {}) {
+    const li = document.createElement('li');
+    li.className = 'timeline-item is-outview';
+        li.setAttribute('role', 'listitem');
+        const node = document.createElement('span');
+        node.className = 'timeline-node';
+    if (it.icon) {
+        const i = document.createElement('i');
+        i.className = String(it.icon);
+        i.setAttribute('aria-hidden', 'true');
+        node.appendChild(i);
+        }
+        li.appendChild(node);
 
-  #renderItem(it = {}) {
-    const date   = it.date   ?? '';
-    const title  = it.title  ?? '';
-    const badge  = it.badge  ?? '';
-    const icon   = it.icon   ?? ''; // e.g. 'fa-solid fa-rocket'
-    const href   = it.href   ?? '';
-    const html   = it.html   ?? '';
+        const card = document.createElement(it.href ? 'a' : 'div');
+        card.className = 'timeline-card';
+        if (it.href) card.setAttribute('href', String(it.href));
 
-    const safeDate  = this.#escapeHtml(date);
-    const safeTitle = this.#escapeHtml(title);
-    const safeBadge = this.#escapeHtml(badge);
-    const safeIcon  = this.#escapeHtml(icon);
-    const safeHref  = this.#escapeHtml(href);
+        if (it.date) {
+        const p = document.createElement('p');
+        p.className = 'timeline-date';
+        p.textContent = String(it.date);
+        card.appendChild(p);
+        }
 
-    const nodeIcon = safeIcon
-      ? `<i class="${safeIcon}" aria-hidden="true"></i>`
-      : '';
+        if (it.title) {
+        const h = document.createElement('h4');
+        h.className = 'timeline-title';
+        h.textContent = String(it.title);
+        if (it.badge) {
+            const b = document.createElement('span');
+            b.className = 'timeline-badge';
+        b.textContent = String(it.badge);
+            h.appendChild(b);
+        }
+        card.appendChild(h);
+        }
 
-    const CardTag = href ? 'a' : 'div';
-    const hrefAttr = href ? ` href="${safeHref}"` : '';
+        // If you do NOT allow HTML, treat body as plain text:
+        const body = document.createElement('div');
+        body.className = 'timeline-body';
+        if (it.html) body.textContent = String(it.html); // <-- textContent, not innerHTML
+        card.appendChild(body);
 
-    return `
-      <li class="timeline-item is-outview" role="listitem">
-        <span class="timeline-node">${nodeIcon}</span>
-        <${CardTag} class="timeline-card"${hrefAttr}>
-          ${date ? `<p class="timeline-date">${safeDate}</p>` : ''}
-          ${title ? `<h4 class="timeline-title">${safeTitle}${badge ? `<span class="timeline-badge">${safeBadge}</span>` : ''}</h4>` : ''}
-          <div class="timeline-body">${html}</div>
-        </${CardTag}>
-      </li>
-    `;
-  }
+        li.appendChild(card);
+    return li;
+}
+
 
   #parseChildItems(root) {
     // Accept <timeline-item>, <li>, or .timeline-item children and map their attributes
