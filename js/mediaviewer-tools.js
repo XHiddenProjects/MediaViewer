@@ -1,6 +1,6 @@
 /**
  * @package MediaViewer
- * @version 1.3.0
+ * @version 1.4.0
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -486,4 +486,270 @@ export const uniqueid = (prefix='', extend=false)=>{
 export const parseBoolean = (str,defNull=true)=>{
     if(str.match(/^(true|false|)$/gi)) return (defNull ? (str.match(/^(true|)$/gi) ? true : false) : (str.match(/^true$/gi) ? true : false));
     else throw new Error('Must be a True/False');
+}
+
+/**
+ * Custom error to carry HTTP status and response body for easier debugging.
+ */
+class HttpError extends Error {
+  /**
+   * @param {number} status - HTTP status code (e.g., 404)
+   * @param {string} statusText - HTTP status text (e.g., "Not Found")
+   * @param {string} url - The request URL
+   * @param {string} [bodyText] - Optional response body (text)
+   */
+  constructor(status, statusText, url, bodyText = '') {
+    super(`HTTP ${status} ${statusText} for ${url}${bodyText ? `\nResponse: ${bodyText}` : ''}`);
+    this.name = 'HttpError';
+    this.status = status;
+    this.statusText = statusText;
+    this.url = url;
+    this.body = bodyText;
+  }
+}
+
+/**
+ * @typedef {Object} RequestClientOptions
+ * @property {string} [baseUrl] - Optional base URL to prefix requests with.
+ * @property {HeadersInit} [headers] - Default headers applied to every request.
+ * @property {typeof fetch} [fetchImpl] - Custom fetch implementation (useful for tests).
+ * @property {'auto'|'json'|'text'} [defaultResponseType='auto'] - Default parsing behavior for responses.
+ */
+
+/**
+ * @typedef {Object} LoadOptions
+ * A superset of the standard `RequestInit` for `fetch`, with a few extras.
+ * @property {string} [method]
+ * @property {HeadersInit} [headers]
+ * @property {BodyInit | null} [body]
+ * @property {AbortSignal} [signal]
+ * @property {'auto'|'json'|'text'} [responseType] - Overrides default parsing for this call.
+ * @property {number} [timeout] - Timeout in milliseconds. Uses AbortController under the hood.
+ */
+
+/**
+ * A small, practical HTTP client around `fetch` with defaults, helpers, and JSON parsing.
+ */
+export class Request {
+  /**
+   * @param {RequestClientOptions} [options]
+   * @example
+   * const api = new Request({ baseUrl: 'https://example.com', headers: { 'X-App': 'MyApp' } });
+   */
+  constructor({ url = '', headers = {}, fetchImpl = fetch, defaultResponseType = 'auto' } = {}) {
+    /** @private */
+    this.url = url;
+    /** @private */
+    this.defaultHeaders = headers;
+    /** @private */
+    this._fetch = fetchImpl;
+    /** @private */
+    this.defaultResponseType = /** @type {'auto'|'json'|'text'} */ (defaultResponseType);
+  }
+
+  /**
+   * Core request method. Applies provided options, throws on non-OK responses,
+   * and parses the response based on `responseType` or `Content-Type`.
+   *
+   * NOTE: This is static and does NOT read instance fields.
+   *
+   * @template T
+   * @param {string} url - Path or absolute URL.
+   * @param {LoadOptions & {
+   *   baseUrl?: string;
+   *   defaultHeaders?: HeadersInit;
+   *   fetchImpl?: typeof fetch;
+   * }} [options] - Fetch options plus extras.
+   * @returns {Promise<T | string>} - Parsed JSON (as `T`) or raw text.
+   * @throws {HttpError} When `response.ok` is false.
+   */
+  static async load(url, options = {}) {
+    const {
+      headers = {},
+      responseType = 'auto',      // independent default
+      timeout,
+      baseUrl = '',               // explicit inputs when using static
+      defaultHeaders = {},
+      fetchImpl = fetch,
+      ...rest
+    } = options;
+
+    // Resolve URL (supports relative vs absolute)
+    const finalUrl =
+      baseUrl && !/^https?:\/\//i.test(url)
+        ? baseUrl.replace(/\/+$/, '') + '/' + url.replace(/^\/+/, '')
+        : url;
+
+    /** @type {HeadersInit} */
+    const mergedHeaders = {
+      Accept: 'application/json, text/plain, */*',
+      ...defaultHeaders,
+      ...headers,
+    };
+
+    // Optional timeout with AbortController
+    let controller;
+    let timeoutId;
+    if (typeof timeout === 'number' && timeout > 0) {
+      controller = new AbortController();
+
+      // If caller provided a signal, link them
+      if (rest.signal) {
+        if (rest.signal.aborted) {
+          controller.abort(rest.signal.reason);
+        } else {
+          rest.signal.addEventListener('abort', () => controller.abort(rest.signal.reason), { once: true });
+        }
+      }
+      rest.signal = controller.signal;
+
+      // DOMException isn't guaranteed everywhere; fall back to Error
+      const AbortCtor = typeof DOMException !== 'undefined' ? DOMException : Error;
+      timeoutId = setTimeout(() => controller.abort(new AbortCtor('TimeoutError', 'AbortError')), timeout);
+    }
+
+    let response;
+    try {
+      response = await fetchImpl(finalUrl, {
+        headers: mergedHeaders,
+        ...rest,
+      });
+    } catch (err) {
+      // Normalize aborted timeouts/abort
+      if (err && /** @type {any} */(err).name === 'AbortError') {
+        throw new Error(`Request aborted (possibly due to timeout) for ${finalUrl}`);
+      }
+      throw err;
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+      let bodyText = '';
+      try {
+        bodyText = await response.text();
+      } catch (_) {}
+      throw new HttpError(response.status, response.statusText, finalUrl, bodyText);
+    }
+
+    // Decide how to parse the response
+    const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+    if (responseType === 'text') {
+      return response.text();
+    }
+
+    if (responseType === 'json') {
+      return /** @type {Promise<any>} */ (response.json());
+    }
+
+    // 'auto' mode: prefer JSON if content-type signals it, else text
+    if (contentType.includes('application/json') || contentType.includes('+json')) {
+      return /** @type {Promise<any>} */ (response.json());
+    }
+
+    return response.text();
+  }
+
+  /**
+   * Perform a GET request.
+   * @template T
+   * @param {string} url
+   * @param {Omit<LoadOptions, 'method'|'body'>} [options]
+   * @returns {Promise<T | string>}
+   * @example
+   * const users = await api.get('/api/users'); // auto JSON if server sends JSON
+   */
+  get(url, options = {}) {
+    return Request.load(url, {
+      ...options,
+      method: 'GET',
+      baseUrl: this.url,
+      defaultHeaders: this.defaultHeaders,
+      fetchImpl: this._fetch,
+      // Preserve instance default unless caller overrides
+      responseType: options.responseType ?? this.defaultResponseType,
+    });
+  }
+
+  /**
+   * Perform a POST request with smart body handling.
+   * - If `body` is FormData/Blob/string => sent as-is.
+   * - Otherwise => JSON.stringify with Content-Type: application/json.
+   *
+   * @template T
+   * @param {string} url
+   * @param {unknown} body
+   * @param {Omit<LoadOptions, 'method'|'body'|'headers'> & { headers?: HeadersInit }} [options]
+   * @returns {Promise<T | string>}
+   * @example
+   * const created = await api.post('/api/users', { name: 'Gavin' });
+   */
+  post(url, body, options = {}) {
+    const isFormLike =
+      (typeof FormData !== 'undefined' && body instanceof FormData) ||
+      (typeof Blob !== 'undefined' && body instanceof Blob);
+
+    const preparedBody =
+      isFormLike || typeof body === 'string'
+        ? /** @type {BodyInit} */ (body)
+        : /** @type {BodyInit} */ (JSON.stringify(body));
+
+    const headers = isFormLike
+      ? options.headers // Let the browser set boundary for FormData
+      : { 'Content-Type': 'application/json', ...(options.headers || {}) };
+
+    return Request.load(url, {
+      ...options,
+      method: 'POST',
+      headers,
+      body: preparedBody,
+      baseUrl: this.url,
+      defaultHeaders: this.defaultHeaders,
+      fetchImpl: this._fetch,
+      responseType: options.responseType ?? this.defaultResponseType,
+    });
+  }
+
+  /**
+   * Perform a PUT request (JSON/body handling same as POST).
+   * @template T
+   * @param {string} url
+   * @param {unknown} body
+   * @param {Omit<LoadOptions, 'method'|'body'|'headers'> & { headers?: HeadersInit }} [options]
+   * @returns {Promise<T | string>}
+   */
+  put(url, body, options = {}) {
+    return this.post(url, body, { ...options, method: 'PUT' });
+  }
+
+  /**
+   * Perform a PATCH request (JSON/body handling same as POST).
+   * @template T
+   * @param {string} url
+   * @param {unknown} body
+   * @param {Omit<LoadOptions, 'method'|'body'|'headers'> & { headers?: HeadersInit }} [options]
+   * @returns {Promise<T | string>}
+   */
+  patch(url, body, options = {}) {
+    return this.post(url, body, { ...options, method: 'PATCH' });
+  }
+
+  /**
+   * Perform a DELETE request.
+   * @template T
+   * @param {string} url
+   * @param {Omit<LoadOptions, 'method'|'body'>} [options]
+   * @returns {Promise<T | string>}
+   */
+  delete(url, options = {}) {
+    return Request.load(url, {
+      ...options,
+      method: 'DELETE',
+      baseUrl: this.url,
+      defaultHeaders: this.defaultHeaders,
+      fetchImpl: this._fetch,
+      responseType: options.responseType ?? this.defaultResponseType,
+    });
+  }
 }

@@ -1,7 +1,8 @@
+// ===== MediaViewer FULL BUILD (with timeline fixes merged) =====
 import { clipboard, color, videoData, genID, fileName, GenerateQRCode, finalizeURL} from "./mediaviewer-tools.js";
 /**
  * @package MediaViewer
- * @version 1.3.0
+ * @version 1.4.0
  * @description A javascript library to create a media viewing experience
  * @license MIT
  * @author XHiddenProjects
@@ -39,17 +40,48 @@ export const startup = ()=>{
 const isLoaded = ()=>{return document.documentElement.hasAttribute('media-viewer-enabled')};
 export class Carousel{
     #callback;
-    /**
-     * Creates a carousel
-     * @param {String} container Container to create the carousel in
-     * @param {{speed: number, interval:number, autoplay:boolean, loop:boolean, slides: string[], captions: [], start: number, controls: boolean, indicator: boolean, transition: 'slide'|'fade'|'none'}} config Carousel configuration
-     * @param {{}} styles Carousel styles 
-     * @param {boolean} [trigger=true] Active the event
-     */
-    constructor(container, config, styles,trigger=true){
-        
+/**
+ * Create a touch/keyboard‑friendly image carousel. Wires autoplay, indicators,
+ * captions and optional controls; driven via API or CSS custom properties.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - CSS selector or DOM element that will host the carousel root.
+ * @param {{
+ *   speed?: number,
+ *   interval?: number,
+ *   autoplay?: boolean,
+ *   loop?: boolean,
+ *   slides?: string[],
+ *   captions?: string[],
+ *   start?: number,
+ *   controls?: boolean,
+ *   indicator?: boolean,
+ *   transition?: 'slide'|'fade'|'none'
+ * }} [config] - Carousel configuration object.  Fields:
+ *   • **speed** (ms): transition animation duration; affects CSS timing classes.
+ *   • **interval** (ms): delay between automatic slide advances when `autoplay` is enabled.
+ *   • **autoplay**: start advancing slides automatically after init.
+ *   • **loop**: wrap from the last slide back to the first.
+ *   • **slides**: array of image URLs to render as slides (order is preserved).
+ *   • **captions**: per‑slide captions; index‑aligned with `slides`.
+ *   • **start**: zero‑based initial slide index.
+ *   • **controls**: render previous/next buttons and bind click handlers.
+ *   • **indicator**: render dot indicators and bind click/wheel navigation.
+ *   • **transition**: visual effect used between slides.
+ * @param {{ 'control-color'?: string, 'indicator-color'?: string, 'captions-color'?: string, 'captions-bg'?: string }} [styles] - Style overrides mapped to CSS variables (e.g., `--carousel-control-color`). Use valid CSS color strings.
+ * @param {boolean} [trigger=true] - When `true`, the carousel mounts immediately; pass `false` to call `init()` later.
+ * @example
+ * const carousel = new Carousel('#heroCarousel', {
+ *   slides: ['/img/1.jpg','/img/2.jpg','/img/3.jpg'],
+ *   captions: ['One','Two','Three'],
+ *   autoplay: true, transition: 'fade', controls: true, indicator: true
+ * }, { 'control-color': '#fff' }).getInstance();
+ */
+constructor(container, config, styles,trigger=true){
         if(!isLoaded()) return;
-        this.container = document.querySelector(container);
+        this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
         this.config = {
             speed: 500,
             interval: 5000,
@@ -70,10 +102,15 @@ export class Carousel{
         Object.assign(this.styles, styles);
         if (this.container instanceof HTMLElement&&trigger) this.init();
     }
-    /**
-     * Initiate the configuration
-     */
-    init(){
+    
+/**
+ * Render and attach the component’s DOM and listeners. Called automatically
+ * when `trigger` is true; call manually to mount later.
+ * @example
+ * const g = new Gallery('#g', { images:['/1.jpg'] }, {}, false);
+ * g.init();
+ */
+init(){
         this.currentSlide = this.config.start;
         this.container.classList.add(this.config.transition);
         this.container.classList.add('carousel');
@@ -101,12 +138,16 @@ export class Carousel{
         getInstance(){
             return this;
         }
-        /**
-          * Registers a callback to be called on slide change
-          * @param {function} callback Callback function to be called on slide change
-          * @param {boolean} [async=false] Trigger callback on load
-          */
-        onSlideChange(callback,async=false) {
+        
+/**
+ * Subscribe to slide changes—great for syncing captions, analytics, or custom UI.
+ * @param {(info:{last:number,current:number,total:number,index:number,caption?:string})=>void} callback - Function invoked after each transition with metadata for the previous and current slide.
+ * @param {boolean} [async=false] - When `true`, immediately invokes `callback` once with the current state after registration.
+ * @example
+ * const c = new Carousel('#c', { slides:['/a.jpg','/b.jpg'] });
+ * c.onSlideChange(({ current, total }) => console.log(`Slide ${current}/${total}`));
+ */
+onSlideChange(callback,async=false) {
             this.#callback = callback;
             if(async)
                 this.#callback({last: this.lastSlide, current: this.currentSlide+1, total: this.config.slides.length, index: this.currentSlide,caption: this.config.captions[this.currentSlide]});
@@ -239,16 +280,31 @@ export class Carousel{
     }
 };
 export class Gallery{
-  /**
-   * Creates an image gallery
-   * @param {String} container Container element
-   * @param {{images: string[], captions: string[], zoom: boolean, gap: string, autoResize: boolean, static: boolean, minColWidth: number}} config
-   * @param {{}} styles Style configuration
-   * @param {boolean} [trigger=true] Active the event
-   */
-  constructor(container, config = {}, styles = {}, trigger = true) {
+  
+/**
+ * Build a responsive, Masonry‑like gallery grid with optional zoom overlay and captions.
+ * Column count auto‑adapts based on container width and intrinsic image sizes unless overridden.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - CSS selector or DOM element for the gallery root.
+ * @param {{ images?: string[], captions?: string[], zoom?: boolean, gap?: string, autoResize?: boolean, static?: boolean, minColWidth?: number }} [config] - Gallery settings.  Fields:
+ *   • **images**: array of image URLs to display in grid order.
+ *   • **captions**: optional array of captions; index‑aligned with `images`.
+ *   • **zoom**: enable click‑to‑zoom overlay with close affordances.
+ *   • **gap**: CSS length for grid gaps (e.g., `12px`, `1rem`).
+ *   • **autoResize**: recompute column count on container/viewport resize.
+ *   • **static**: when `true`, disables overlay click‑to‑close (kiosk mode).
+ *   • **minColWidth** (px): fallback width used to estimate columns when sizes are unknown.
+ * @param {{ 'max-cols'?: string|number, 'gap'?: string, 'captions-bg'?: string, 'captions-color'?: string, 'backdrop'?: string, 'close-btn'?: string, 'box-shadow'?: string }} [styles] - CSS variable overrides for the gallery (e.g., `--gallery-gap`).
+ * @param {boolean} [trigger=true] - Auto‑mount control; set `false` to call `init()` yourself after async work.
+ * @example
+ * new Gallery('#shots', { images:['/a.jpg','/b.jpg'], zoom:true }, { 'max-cols': 3 });
+ */
+constructor(container, config = {}, styles = {}, trigger = true) {
     if (!isLoaded()) return;
-    this.container = document.querySelector(container);
+    this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
 
     // Defaults
     this.config = {
@@ -461,19 +517,81 @@ export class Gallery{
 
 export class VideoPlayer{
     #videoList;
-    /**
-     * Generate a new video element
-     * @param {String} container 
-     * @param {{autoplay: boolean, preloaded: 'auto'|'metadata'|'none', controls: boolean, playlists:[...{poster: string, title:string, author: string, src: [...{quality: string|number, path: string}], tracks:[...{src: string, kind: string, srclang: string, label: string}]}], start: number, skipRate: number, embed: boolean}} config Configurations
-     * @param {{}} styles Style configuration
-     * @returns {Video} return the video element
-     * @param {boolean} [trigger=true] Active the event
-     */
-    constructor(container, config, styles, trigger=true){
+    
+/**
+ * Feature‑rich HTML5 video player: playlists, quality selection, CC settings,
+ * thumbnails, keyboard shortcuts, PiP/theater/fullscreen and share tools.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - Player wrapper element or CSS selector.
+ * @param {{
+ *   autoplay?: boolean,
+ *   preloaded?: 'auto'|'metadata'|'none',
+ *   controls?: boolean,
+ *   playlists?: Array<{ poster?: string, title: string, author?: string, src: Array<{ quality: string|number, path: string }>, tracks?: Array<{ src: string, kind: string, srclang: string, label: string }> }>,
+ *   start?: number,
+ *   skipRate?: number,
+ *   embed?: boolean
+ * }} [config] - Player configuration.  Highlights:
+ *   • **autoplay**: attempt to start playback automatically (subject to browser policies).
+ *   • **preloaded**: preload strategy for the `<video>` element.
+ *   • **controls**: render the custom control bar (progress, CC, gear, etc.).
+ *   • **playlists**: list of playable items; each has `src` sources by quality and optional `tracks`.
+ *   • **start** (seconds): initial timestamp to seek after metadata is loaded.
+ *   • **skipRate** (seconds): amount to seek with arrow keys.
+ *   • **embed**: adjusts layout/menus for embedded usage.
+ * @param {{
+ *   'progress-background'?: string,
+ *   'progress'?: string,
+ *   'controls-color'?: string,
+ *   'volume-thumb'?: string,
+ *   'volume-border'?: string,
+ *   'volume-track-before'?: string,
+ *   'volume-track-after'?: string,
+ *   'bg'?: string,
+ *   'checkpoint'?: string,
+ *   'buffer'?: string,
+ *   'autoplay-checked'?: string,
+ *   'autoplay-bg'?: string,
+ *   'autoplay-thumb'?: string,
+ *   'cc-active'?: string,
+ *   'preview-timestamp'?: string,
+ *   'settings-bg'?: string,
+ *   'settings-color'?: string,
+ *   'settings-hover'?: string,
+ *   'pip-overlay'?: string,
+ *   'pip-overlay-color'?: string,
+ *   'playlist'?: string,
+ *   'playlist-time'?: string,
+ *   'playlist-time-bg'?: string,
+ *   'error-bg'?: string,
+ *   'error-color'?: string,
+ *   'title-color'?: string,
+ *   'playlist-title'?: string,
+ *   'playlist-author'?: string,
+ *   'cue-font'?: string,
+ *   'cue-font-color'?: string|number,
+ *   'cue-font-size'?: string,
+ *   'cue-bg'?: string|number,
+ *   'cue-bg-opacity'?: string|number,
+ *   'cue-window-color'?: string|number,
+ *   'cue-window-opacity'?: string|number,
+ *   'cue-font-opacity'?: string|number
+ * }} [styles] - Visual tokens mapped to video CSS variables (e.g., `--video-progress`). Use CSS colors/lengths or raw numbers where noted.
+ * @param {boolean} [trigger=true] - Auto‑mount behavior; set `false` for manual `init()`.
+ * @example
+ * const vp = new VideoPlayer('#player', {
+ *   playlists: [{ title:'Demo', poster:'/poster.jpg', src:[{ quality:'auto', path:'/video.mp4' }], tracks:[{ src:'/captions.vtt', kind:'subtitles', srclang:'en', label:'English' }] }],
+ *   controls: true
+ * }).getInstance();
+ */
+constructor(container, config, styles, trigger=true){
 
         if(!isLoaded()) return;
         this.params = new URLSearchParams(window.location.search);
-        this.container = document.querySelector(container);
+        this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
         this.config = {
             embed: false,
             autoplay: false,
@@ -1919,12 +2037,16 @@ const progressContainer = this.container.querySelector('.progress');
             }
         });
     }
-    /**
-     * Generates event on 
-     * @param {String} event Video Event
-     * @param {Function} callback Function callback
-     */
-    on(event,callback){
+    
+/**
+ * Register a media event listener on the underlying `<video>` element.
+ * @param {keyof HTMLMediaElementEventMap|string} event - Media event name (e.g., `timeupdate`, `ended`, `seeking`).
+ * @param {(e: Event) => void} callback - Handler invoked with the dispatched `Event` from the `<video>` element.
+ * @example
+ * const vp = new VideoPlayer('#vp', { playlists:[{ title:'Demo', src:[{ quality:'auto', path:'/v.mp4' }] }] });
+ * vp.on('timeupdate', e => console.log(e.target.currentTime));
+ */
+on(event,callback){
         setTimeout(()=>{
             if(this.eventTracker[event]){
                 this.eventTracker[event].push(callback);
@@ -1938,11 +2060,15 @@ const progressContainer = this.container.querySelector('.progress');
             });
         },300);
     }
-    /**
-     * Returns the video debug info
-     * @returns {Promise.Object}
-     */
-    getDebug() {
+    
+/**
+ * Capture diagnostics of the current `<video>` element and event subscriptions.
+ * @returns {Promise<Object>} Resolves with structured debug information (media state, buffered ranges, event counts, etc.).
+ * @example
+ * const info = await new VideoPlayer('#vp', { playlists:[{ title:'X', src:[{ quality:'auto', path:'/v.mp4' }] }] }).getDebug();
+ * console.table(info.video);
+ */
+getDebug() {
         return new Promise((resolve) => {
             const video = this.container.querySelector('.video-frame');
             this.debug = {
@@ -1998,19 +2124,43 @@ const progressContainer = this.container.querySelector('.progress');
     }
 };
 
-export class AudioPlayer{
+export 
+/**
+ * Register an event listener on the underlying `<audio>` element.
+ * @param {keyof HTMLMediaElementEventMap|string} event - Media event name (e.g., `timeupdate`, `ended`).
+ * @param {(e: Event) => void} callback - Handler invoked with the dispatched `Event` from the `<audio>` element.
+ * @example
+ * const ap = new AudioPlayer('#ap', { playlists:[{ src:[{ path:'/t.mp3', title:'T1' }] }] });
+ * ap.on('ended', () => console.log('Track finished'));
+ */
+class AudioPlayer{
     #playlistsDurations = {};
-    /**
-     * Creates an Audio player
-     * @param {String} container Container to load the player
-     * @param {{controls: Boolean, skipRate: Number, autoplay: Boolean, loop: Boolean, shuffle: Boolean, preloaded: 'auto'|'metadata'|'none', playlists:[...src:[{img: String, path: String, title: String, artist: String, album: String}], tracks: [...{src: string, kind: string, srclang: string, label: string}]]}} config 
-     * @param {{}} styles Styles
-     * @param {boolean} [trigger=true] Active the event
-     */
-    constructor(container, config, styles={}, trigger=true){
+    
+/**
+ * Accessible audio player with playlist table, keyboard shortcuts, loop/shuffle,
+ * captions support and persisted autoplay preference.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - Audio component host element or CSS selector.
+ * @param {{ controls?: boolean, skipRate?: number, autoplay?: boolean, loop?: boolean, shuffle?: boolean, preloaded?: 'auto'|'metadata'|'none', playlists?: Array<{ src: Array<{ img?: string, path: string, title: string, artist?: string, album?: string }>, tracks?: Array<{ src: string, kind: string, srclang: string, label: string }> }> }} [config] - Player options.  Highlights:
+ *   • **controls**: render transport controls (play/pause, prev/next, etc.).
+ *   • **skipRate** (seconds): step when seeking via keyboard.
+ *   • **autoplay**: attempt autoplay after a user gesture when allowed.
+ *   • **loop**: repeat the current track.
+ *   • **shuffle**: randomize next‑track selection.
+ *   • **preloaded**: preload hint for the `<audio>` element.
+ *   • **playlists**: array of playlist rows with `src` objects and optional `tracks` for captions.
+ * @param {{ 'playlist-background'?: string, 'playlist-color'?: string, 'playlist-heading'?: string, 'playlist-hover'?: string, 'playlist-hover-color'?: string, 'player-container-bg'?: string, 'player-container-color'?: string|number, 'progress'?: string, 'progress-bar'?: string, 'progress-hover'?: string, 'progress-buffer'?: string, 'captions-bg'?: string, 'captions-color'?: string, 'loop-active'?: string }} [styles] - Visual tokens mapped to audio CSS variables (e.g., `--audio-progress-bar`).
+ * @param {boolean} [trigger=true] - Auto‑mount behavior; set `false` to call `init()` later.
+ * @example
+ * new AudioPlayer('#audio', { playlists:[{ src:[{ path:'/track.mp3', title:'Track 1', artist:'You' }] }], controls:true });
+ */
+constructor(container, config, styles={}, trigger=true){
         if(!isLoaded()) return;
         this.params = new URLSearchParams(window.location.search);
-        this.container = document.querySelector(container);
+        this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
         this.config = {
             autoplay: false,
             loop: false,
@@ -2254,18 +2404,61 @@ export class AudioPlayer{
     #changeCue(){
         const audioElement = this.container.querySelector('audio');
         const captionsElement = this.container.querySelector('.audio-captions');
-        captionsElement.innerText = '';
+        if (!audioElement || !captionsElement) return;
+
+        // Keep the bar visible; we toggle .reading separately
+        captionsElement.classList.add('showing');
+
         const tracks = Array.from(audioElement.querySelectorAll('track[kind="captions"]'));
-        let selectedTrack = tracks.find(track => track.srclang === navigator.language.substring(0, 2)) || tracks[0];
-        if (selectedTrack) {
-            selectedTrack.track.mode = 'hidden';
-            selectedTrack.track.addEventListener('cuechange', () => {
-                const activeCues = selectedTrack.track.activeCues;
-                if (activeCues && activeCues.length > 0) captionsElement.innerText = activeCues[0].text;
-                else captionsElement.innerText = '';
-            });
-        }
-    };
+        let selectedTrack = tracks.find(t => t.srclang === navigator.language.substring(0,2)) || tracks[0];
+        if (!selectedTrack) { captionsElement.innerText = ''; return; }
+        selectedTrack.track.mode = 'hidden';
+
+        // Clear old poller
+        if (this._capPoll) clearInterval(this._capPoll);
+
+        if (!this._capTimeout) this._capTimeout = null;
+        if (!this._lastCueText) this._lastCueText = '';
+
+        const updateNow = () => {
+            const activeCues = selectedTrack.track.activeCues;
+            if (activeCues && activeCues.length > 0) {
+            const txt = activeCues[0].text || '';
+            this._lastCueText = txt;
+            captionsElement.innerText = txt;
+            if (audioElement.paused) captionsElement.classList.remove('reading');
+            else captionsElement.classList.add('reading');
+            } else {
+            // Grace period scaled by playback rate to avoid blinking between tightly spaced cues
+            clearTimeout(this._capTimeout);
+            const rate = Math.max(0.5, audioElement.playbackRate || 1);
+            const waitMs = Math.round(180 / rate);
+            this._capTimeout = setTimeout(() => {
+                const ac = selectedTrack.track.activeCues;
+                if (ac && ac.length > 0) return; // a new cue arrived
+                if (!audioElement.paused && !audioElement.ended) {
+                if (this._lastCueText) captionsElement.innerText = this._lastCueText;
+                } else {
+                captionsElement.innerText = '';
+                captionsElement.classList.remove('reading');
+                }
+            }, waitMs);
+            }
+        };
+
+        try { updateNow(); } catch {}
+
+        // Event + lightweight polling fallback
+        if (this._onAudioCueChange) selectedTrack.track.removeEventListener('cuechange', this._onAudioCueChange);
+        this._onAudioCueChange = () => updateNow();
+        selectedTrack.track.addEventListener('cuechange', this._onAudioCueChange);
+
+        this._capPoll = setInterval(() => {
+            if (!audioElement || audioElement.ended) return;
+            if (!document.body.contains(this.container)) { clearInterval(this._capPoll); return; }
+            updateNow();
+        }, 75);
+        };
     #events(){
         this.container.querySelector('audio').addEventListener('loadeddata',()=>{
             if(this.config.autoplay) {
@@ -2283,6 +2476,9 @@ export class AudioPlayer{
             this.parentNode.querySelector('.play-pause i').className = this.parentNode.querySelector('.play-pause i').className.replace('fa-pause', 'fa-play');
         });
         this.container.querySelector('audio').addEventListener('playing', function () {
+    const captions = this.parentNode.querySelector('.audio-captions');
+    if (captions) { captions.classList.add('showing'); captions.classList.add('reading'); }
+
             this.parentNode.querySelector('.play-pause i').className = this.parentNode.querySelector('.play-pause i').className.replace('fa-play', 'fa-pause');
         });
 
@@ -2504,6 +2700,8 @@ export class AudioPlayer{
         });
 
         this.container.querySelector('audio').addEventListener('ended', () => {
+    try { const cap = this.container.querySelector('.audio-captions'); if (cap) cap.classList.remove('reading'); } catch(e){}
+
             if (this.config.autoplay) {
                 this.container.querySelector('.audio-next').click();
             }
@@ -2555,29 +2753,40 @@ export class AudioPlayer{
 }
 
 // --- Before & After: fully functional, accessible, pointer + keyboard ---
-export class BeforeAndAfter {
-  /**
-   * Creates a before/after image comparison viewer
-   * @param {String} container
-   * @param {{
-   *   before: string,
-   *   after: string,
-   *   orientation: 'horizontal'|'vertical',
-   *   start?: number,                 // 0..100 (percent); default 50
-   *   handle?: boolean,               // show handle; default true
-   *   handleStyle?: {                 // optional handle theming
-   *     backgroundColor?: string,     // line color
-   *     width?: string,               // line thickness, e.g. '2px'
-   *     knobSize?: string,            // e.g. '28px'
-   *     iconColor?: string            // icon color inside knob
-   *   }
-   * }} config
-   * @param {{}} styles  // extra CSS variables -> --before-after-*
-   */
-  constructor(container, config = {}, styles = {}) {
+export 
+
+/**
+ * Subscribe to edge and position changes.
+ * @param {'before'|'after'|'position'} event - Event name: `'before'` fires once at 100, `'after'` at 0, `'position'` on every change.
+ * @param {(pos:number)=>void} callback - Receives the current position percentage.
+ * @example
+ * const ba = new BeforeAndAfter('#cmp', { before:'/b.jpg', after:'/a.jpg' });
+ * ba.on('position', p => console.log('pos', p));
+ */
+class BeforeAndAfter {
+  
+/**
+ * Interactive before/after comparison component with pointer and keyboard support;
+ * works horizontally or vertically.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - Widget host element or CSS selector.
+ * @param {{ before: string, after: string, orientation?: 'horizontal'|'vertical', start?: number, handle?: boolean, handleStyle?: { backgroundColor?: string, width?: string, knobSize?: string, iconColor?: string } }} [config] - Comparison settings. Fields:
+ *   • **before** / **after**: image URLs.
+ *   • **orientation**: axis along which the reveal handle moves.
+ *   • **start** (percent): initial position of the handle (0..100).
+ *   • **handle**: toggle the draggable handle UI.
+ *   • **handleStyle**: per‑instance themed colors and sizes of the handle.
+ * @param {{ 'bar-width'?: string, 'handle-bg'?: string, 'knob-size'?: string, 'handle-icon'?: string }} [styles] - CSS variable overrides (e.g., `--before-after-bar-width`).
+ * @example
+ * const ba = new BeforeAndAfter('#compare', { before:'/before.jpg', after:'/after.jpg', start: 40 });
+ */
+constructor(container, config = {}, styles = {}) {
     if (!isLoaded()) return;
 
-    this.container = document.querySelector(container);
+    this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
     if (!(this.container instanceof HTMLElement)) return;
 
     // Defaults
@@ -2865,5 +3074,582 @@ export class BeforeAndAfter {
         }
     }
 }
+export class Hero {   
+/**
+ * Responsive hero banner with alignment, button/link tabs and theming via CSS variables.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container - Hero block element or CSS selector.
+ * @param {{ eyebrow?: string, title?: string, subtitle?: string, description?: string, src?: string, alt?: string, tabs?: Array<{ title?: string, label?: string, href?: string, url?: string, target?: '_self'|'_blank'|'_parent'|'_top', rel?: string, variant?: 'primary'|'ghost' }>, align?: 'left'|'center'|'right', tabsPlacement?: 'top'|'bottom', tabsVariant?: 'buttons'|'links' }} [config] - Content and behavior options for the banner, including call‑to‑action buttons/links (in `tabs`).
+ * @param {{ 'bg'?: string, 'color'?: string, 'height'?: string, 'max-w'?: string|number, 'padding-y'?: string, 'padding-x'?: string, 'title-size'?: string, 'subtitle-size'?: string, 'eyebrow-size'?: string, 'scrim-from'?: string, 'scrim-to'?: string, 'btn-font-family'?: string, 'btn-font-size'?: string|number, 'btn-active-bg'?: string, 'btn-active-color'?: string, 'btn-active-border'?: string, 'btn-bg'?: string, 'btn-color'?: string, 'btn-border'?: string, 'btn-hover-bg'?: string, 'btn-hover-color'?: string, 'btn-hover-border'?: string, 'fade-duration'?: string, 'font-family'?: string, 'bg-hover'?: string, 'color-hover'?: string }} [styles] - Visual tokens mapped to hero CSS variables (e.g., `--hero-banner-height`).
+ * @example
+ * new Hero('#hero', { title:'Welcome', subtitle:'Build fast.', tabsVariant:'buttons', tabs:[{ title:'Docs', url:'#docs' }] }, { 'max-w': 1200 });
+ */
+constructor(container, config = {}, styles = {}) {
+    if (!document.documentElement.hasAttribute('media-viewer-enabled')) return;
+    this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
+    if (!(this.container instanceof HTMLElement)) return;
+
+    this.config = {
+      eyebrow: '',
+      title: '',
+      subtitle: '',
+      description: '',
+      src: '',
+      alt: '',
+      tabs: [],
+      // --- NEW ---
+      align: 'left',                // 'left' | 'center' | 'right'
+      tabsPlacement: 'bottom',      // 'top' | 'bottom'
+      tabsVariant: 'buttons',       // 'buttons' (existing behavior) | 'links' (uses .hero-tabs)
+      ...config
+    };
+
+    // Normalize props (subtitle/description)
+    this.config.subtitle = this.config.subtitle ?? this.config.description ?? '';
+
+    this.styles = { ...styles };
+    setTimeout(() => this.init(), 0);
+  }
+
+  init() {
+    // Map provided styles to --hero-banner-* custom properties (existing)
+    Object.keys(this.styles).forEach(k => {
+        if (k === 'theme') return; // special-case
+        this.container.style.setProperty(`--hero-banner-${k}`, String(this.styles[k]));
+    });
+    if ((this.styles.theme ?? '').toLowerCase() === 'light') {
+        this.container.classList.add('is-light');
+    }
+    this.container.classList.add('hero-banner');
+
+    // --- NEW: alignment mapping ---
+    const map = {
+        left:   { text: 'left',   flex: 'flex-start' },
+        center: { text: 'center', flex: 'center' },
+        right:  { text: 'right',  flex: 'flex-end' }
+    };
+    const a = map[this.config.align] ?? map.left;
+    this.container.style.setProperty('--hero-content-align', a.text);
+    this.container.style.setProperty('--hero-actions-justify', a.flex);
+    this.container.style.setProperty('--hero-tabs-justify', a.flex);
+
+    // Build actions or tabs once (both read from config.tabs)
+    const hasTabs = Array.isArray(this.config.tabs) && this.config.tabs.length > 0;
+
+    // Buttons (current behavior)
+    const buildButtons = () => !hasTabs ? '' : `
+        <div class="hero__actions" role="group" aria-label="Hero actions">
+        ${
+            this.config.tabs.map(t => {
+            const href   = t.href ?? t.url ?? '#';
+            const target = t.target ?? '_self';
+            const rel    = t.rel ?? (target === '_blank' ? 'noopener noreferrer' : '');
+            const label  = (t.title ?? t.label ?? '').toString().trim();
+            const variant = (t.variant === 'ghost' ? 'hero__btn--ghost' : 'hero__btn--primary');
+            return `<a class="hero__btn ${variant}" href="${href}" target="${target}"${rel ? ` rel="${rel}"` : ''}>${label}</a>`;
+            }).join('')
+        }
+        </div>
+    `;
+
+    // Links (uses your existing .hero-tabs styling)
+    const buildLinks = () => !hasTabs ? '' : `
+        <nav class="hero-tabs" aria-label="Hero tabs">
+        ${
+            this.config.tabs.map(t => {
+            const href   = t.href ?? t.url ?? '#';
+            const target = t.target ?? '_self';
+            const rel    = t.rel ?? (target === '_blank' ? 'noopener noreferrer' : '');
+            const label  = (t.title ?? t.label ?? '').toString().trim();
+            return `<a class="hero-tab" href="${href}" target="${target}"${rel ? ` rel="${rel}"` : ''}>${label}</a>`;
+            }).join('')
+        }
+        </nav>
+    `;
+
+    const renderTabs = this.config.tabsVariant === 'links' ? buildLinks : buildButtons;
+
+    // Decide top vs bottom location for tabs/actions
+    const topBlock    = (hasTabs && this.config.tabsPlacement === 'top')    ? renderTabs() : '';
+    const bottomBlock = (hasTabs && this.config.tabsPlacement !== 'top')    ? renderTabs() : '';
+
+    // Background image (existing)
+    const bg = this.config.src
+        ? `<img src="${this.config.src}" alt="${this.config.alt ?? ''}" class="background" />`
+        : '';
+
+    // Compose hero content
+    this.container.innerHTML = `
+        ${bg}
+        <div class="hero__inner">
+        ${topBlock}
+        ${this.config.eyebrow ? `<p class="hero__eyebrow">${this.config.eyebrow}</p>` : ''}
+        ${this.config.title   ? `<h1 class="hero__title">${this.config.title}</h1>`     : ''}
+        ${this.config.subtitle? `<p class="hero__subtitle">${this.config.subtitle}</p>`  : ''}
+        ${bottomBlock}
+        </div>
+    `;
+
+    // Optional: mark current page anchors (existing utility)
+    try {
+        const anchors = this.container.querySelectorAll('.hero__actions a[href], .hero-tabs a[href]');
+        anchors.forEach(a => {
+        const aURL = new URL(a.href, location.href);
+        if (aURL.origin === location.origin && aURL.pathname === location.pathname) {
+            a.setAttribute('aria-current', 'page');
+        }
+        });
+    } catch { /* no-op */ }
+
+    // Trigger fade-in (existing)
+    this._wireTabUnderline();
+
+    // Reset all underline states when leaving the banner (prevents stray lines)
+    const root = this.container;
+    root.addEventListener('mouseleave', () => {
+      const tabs = root.querySelectorAll('.hero-tabs .hero-tab');
+      tabs.forEach(t => { t.classList.remove('u-enter','u-leave'); t.classList.add('u-reset'); });
+    });
+  this.container.classList.add('is-ready');
+    }
+
+  
+  /** Drives the half-on-enter / full-on-leave underline timeline */
+  _wireTabUnderline() {
+    const tabs = this.container.querySelectorAll('.hero-tabs .hero-tab');
+    tabs.forEach(tab => {
+      // Do not animate the active tab
+      if (tab.getAttribute('aria-selected') === 'true' || tab.getAttribute('aria-current') === 'page') {
+        return;
+      }
+      const onEnter = () => {
+        tab.classList.remove('u-leave', 'u-reset');
+        tab.classList.add('u-enter');
+      };
+      const onLeave = () => {
+        tab.classList.remove('u-enter');
+        tab.classList.add('u-leave');
+        const onEnd = (ev) => {
+          if (ev.animationName === 'hero-u-out') {
+            tab.classList.remove('u-leave');
+            tab.classList.add('u-reset');
+            tab.removeEventListener('animationend', onEnd);
+          }
+        };
+        tab.addEventListener('animationend', onEnd);
+      };
+      tab.addEventListener('mouseenter', onEnter);
+      tab.addEventListener('focus', onEnter);
+      tab.addEventListener('mouseleave', onLeave);
+      tab.addEventListener('blur', onLeave);
+    });
+  }
+
+  getInstance() { return this; }
+}
+export class Timeline {
+/**
+ * Versatile timeline component (vertical or horizontal) with optional alternating layout
+ * and theming via CSS variables.
+ *
+ * @constructor
+ * @param {string|HTMLElement} container
+ *        Root element or CSS selector that will host the timeline.
+ * @param {{
+ *   orientation?: 'vertical'|'horizontal',
+ *   alternate?: boolean,
+ *   invert?: boolean,
+ *   items?: Array<{
+ *     date?: string,
+ *     title?: string,
+ *     html?: string,
+ *     icon?: string,
+ *     badge?: string,
+ *     href?: string
+ *   }>
+ * }} [config]
+ *        Behavioral options. When `items` is omitted/empty, the component
+ *        will parse child markup (`<timeline-item>`, `<li>`, or `.timeline-item`)
+ *        to build entries.
+ *
+ * @param {{
+ *   'track-color'?: string,
+ *   'connector-width'?: string,
+ *   'node-bg'?: string,
+ *   'node-border'?: string,
+ *   'node-size'?: string,
+ *   'node-shadow'?: string,
+ *   'gutter'?: string,
+ *   'spacing'?: string,
+ *   'max-w'?: string|number,
+ *   'card-bg'?: string,
+ *   'card-color'?: string,
+ *   'card-radius'?: string,
+ *   'card-shadow'?: string,
+ *   'card-padding'?: string,
+ *   'date-color'?: string,
+ *   'title-color'?: string,
+ *   'accent'?: string,
+ *   'icon-color'?: string,
+ *   'badge-bg'?: string,
+ *   'badge-color'?: string,
+ *   'inview-duration'?: string
+ * }} [styles]
+ *        **CSS mapping**; each key maps to a `--timeline-*` custom property
+ *        (e.g., `{ 'track-color': '#d9dde3' }` → `--timeline-track-color: #d9dde3`).
+ *
+ *
+ * @example
+ * new Timelines('#history', {
+ *   orientation: 'vertical',
+ *   alternate: true,
+ *   items: [
+ *     { date: '2024', title: 'Launched', html: '<p>First release</p>', icon: 'fa-solid fa-rocket', badge: 'v1' },
+ *     { date: '2025', title: 'Milestone', html: '<p>Shipped timelines</p>' }
+ *   ]
+ * }, {
+ *   'track-color': '#d9dde3',
+ *   'node-border': '#4badde',
+ *   'card-bg': '#ffffff'
+ * });
+ */
+  constructor(container, config = {}, styles = {}) {
+    // Keep parity with your library's "media-viewer-enabled" startup gate
+    if (!isLoaded()) return;
+
+    this.container = (typeof container === 'string')
+      ? document.querySelector(container)
+      : container;
+
+    if (!(this.container instanceof HTMLElement)) return;
+
+    this.config = {
+      orientation: 'vertical',
+      alternate: true,
+      invert: false,
+      items: [],       // If empty, we will parse from child markup
+      ...config
+    };
+
+    this.styles = { ...styles };
+    setTimeout(() => this.init(), 0);
+  }
+
+  init() {
+    // Apply CSS custom properties from styles (maps to --timeline-*)
+    Object.keys(this.styles).forEach(k => {
+      this.container.style.setProperty(`--timeline-${k}`, String(this.styles[k]));
+    });
+
+    this.container.classList.add('timeline');
+    const o = (this.config.orientation || 'vertical').toLowerCase();
+    this.container.classList.add(o === 'horizontal' ? 'horizontal' : 'vertical');
+    if (this.config.alternate) this.container.classList.add('alternate');
+    if (this.config.invert) this.container.classList.add('alt-invert');
+
+    // Build items: prefer config.items; else parse child nodes
+    const items = Array.isArray(this.config.items) && this.config.items.length
+      ? this.config.items
+      : this.#parseChildItems(this.container);
+
+    // Render
+    this.container.innerHTML = `
+      <span class="timeline-track" aria-hidden="true"></span>
+      <ol class="timeline-list" role="list">
+        ${items.map(it => this.#renderItem(it)).join('')}
+      </ol>
+    `;
+
+    
+// Seed initial state: everything starts out of view
+this.container.querySelectorAll('.timeline-item').forEach((el) => {
+  el.classList.add('is-outview');
+  el.classList.remove('is-inview');
+});
+
+// One observer that toggles is-inview / is-outview on both enter and exit
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    const el = e.target;
+    if (e.isIntersecting && e.intersectionRatio > 0.08) {
+      el.classList.add('is-inview');
+      el.classList.remove('is-outview');
+    } else {
+      el.classList.remove('is-inview');
+      el.classList.add('is-outview');
+    }
+  }
+}, { root: null, rootMargin: '0px 0px -6% 0px', threshold: [0, 0.12, 0.35] });
+
+this.container.querySelectorAll('.timeline-item').forEach((el) => io.observe(el));
+
+
+    // Keyboard: make cards focusable if they act like links
+    this.container.querySelectorAll('.timeline-card[href]').forEach(a => {
+      a.setAttribute('role', 'article');
+    });
+
+    if (this.container.classList.contains('horizontal')) {
+        const list  = this.container.querySelector('.timeline-list');
+        const track = this.container.querySelector('.timeline-track');
+
+        const setTrackWidth = () => {
+            if (!list || !track) return;
+            track.style.width = `${list.scrollWidth}px`; // match full content width
+        };
+
+        setTrackWidth();
+
+        if ('ResizeObserver' in window) {
+            const ro = new ResizeObserver(setTrackWidth);
+            ro.observe(list);
+        } else {
+            window.addEventListener('resize', setTrackWidth);
+        }
+    }
+
+  }
+
+  getInstance(){ return this; }
+
+  #renderItem(it = {}) {
+    const date   = it.date   ?? '';
+    const title  = it.title  ?? '';
+    const badge  = it.badge  ?? '';
+    const icon   = it.icon   ?? ''; // e.g. 'fa-solid fa-rocket'
+    const href   = it.href   ?? '';
+    const html   = it.html   ?? '';
+
+    const nodeIcon = icon
+      ? `<i class="${icon}" aria-hidden="true"></i>`
+      : '';
+
+    const CardTag = href ? 'a' : 'div';
+    const hrefAttr = href ? ` href="${href}"` : '';
+
+    return `
+      <li class="timeline-item is-outview" role="listitem">
+        <span class="timeline-node">${nodeIcon}</span>
+        <${CardTag} class="timeline-card"${hrefAttr}>
+          ${date ? `<p class="timeline-date">${date}</p>` : ''}
+          ${title ? `<h4 class="timeline-title">${title}${badge ? `<span class="timeline-badge">${badge}</span>` : ''}</h4>` : ''}
+          <div class="timeline-body">${html}</div>
+        </${CardTag}>
+      </li>
+    `;
+  }
+
+  #parseChildItems(root) {
+    // Accept <timeline-item>, <li>, or .timeline-item children and map their attributes
+    const nodes = root.querySelectorAll('timeline-item, li, .timeline-item');
+    return Array.from(nodes).map(n => ({
+      date:  n.getAttribute?.('data-date')  ?? '',
+      title: n.getAttribute?.('data-title') ?? n.querySelector('h4,h3,h2')?.textContent ?? '',
+      badge: n.getAttribute?.('data-badge') ?? '',
+      icon:  n.getAttribute?.('data-icon')  ?? '',
+      href:  n.getAttribute?.('data-href')  ?? n.querySelector('a')?.getAttribute('href') ?? '',
+      html:  n.innerHTML
+    }));
+  }
+}
+
+
+export class Flipbook { 
+  /**
+   * Interactive, accessible flipbook/reader with page turning animation, zoom,
+   * high-contrast mode, text highlighting + sticky notes, and built-in
+   * text-to-speech (TTS) with voice/rate/pitch controls and local persistence.
+   */
+  constructor(container, config = {}, styles = {}){
+    if (!document.documentElement.hasAttribute('media-viewer-enabled')) return; 
+    this.container = (typeof container === 'string') ? document.querySelector(container) : container; 
+    if (!(this.container instanceof HTMLElement)) return; 
+    this.config = Object.assign({
+      pages: [], width: 800, height: 520, rtl: false,
+      highlightColors: ['yellow','#ffad0d','#7bd389','#63cdda','#a29bfe','#ff6b6b','#ffd93d'],
+      voice: '', rate: 1.0, pitch: 1.0,
+      persistKey: (this.container.id || 'flipbook')
+    }, config);
+    this.styles = Object.assign({}, styles);
+    this._sheetIndex = 0; this._sheetCount = Math.ceil((this.config.pages?.length || 0)/2);
+    this._isTurning = false; this._zoom = 1; this._userZoom = false;
+    this._contrast = false; this._hlOn = false; this._hlColor = this.config.highlightColors[0] || 'yellow';
+    this._persistNS = `mv_flipbook_${this.config.persistKey}`;
+    this._tts = { id:0, utter:null, str:'', map:[], words:[], playing:false, paused:false, lastChar:0 };
+    this._persisted = this._loadPersisted();
+    Promise.resolve().then(()=>this.init());
+  }
+  getInstance(){ return this; }
+  next(){ if(!this._isTurning) this._turn(1); }
+  prev(){ if(!this._isTurning) this._turn(-1); }
+  init(){
+    this.container.classList.add('flipbook','fb-tooltip-js');
+    this.container.style.setProperty('--fb-zoom', String(this._zoom));
+    this.container.style.setProperty('--fb-w', typeof this.config.width === 'number' ? `${this.config.width}px` : `${String(this.config.width)}px`);
+    this.container.style.setProperty('--fb-h', typeof this.config.height === 'number' ? `${this.config.height}px` : `${String(this.config.height)}px`);
+    Object.keys(this.styles).forEach(k=>this.container.style.setProperty(`--flipbook-${k}`, String(this.styles[k])));
+    const persistedTTS = this._ttsLoadPrefs();
+    if (persistedTTS){
+      if (persistedTTS.voice) this.config.voice = persistedTTS.voice;
+      if (typeof persistedTTS.rate === 'number') this.config.rate = persistedTTS.rate;
+      if (typeof persistedTTS.pitch === 'number') this.config.pitch = persistedTTS.pitch;
+    }
+    this.container.innerHTML = `
+      <div class="fb-toolbar" role="toolbar" aria-label="Flipbook toolbar">
+        <button class="fb-btn fb-prev" title="Previous (←)" aria-label="Previous page"><i class="fa-solid fa-angle-left"></i></button>
+        <button class="fb-btn fb-next" title="Next (→)" aria-label="Next page"><i class="fa-solid fa-angle-right"></i></button>
+        <div class="fb-progress" role="slider" aria-label="Pages progress" tabindex="0" aria-valuemin="1" aria-valuenow="1" aria-valuemax="1">
+          <div class="fb-progress-bar"></div>
+          <span class="fb-progress-thumb" aria-hidden="true"></span>
+        </div>
+        <span class="fb-progress-text" aria-live="polite"></span>
+        <span class="fb-sep"></span>
+        <button class="fb-btn fb-zoom-out" title="Zoom out (-)"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+        <button class="fb-btn fb-zoom-in" title="Zoom in (+)"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+        <span class="fb-sep"></span>
+        <button class="fb-btn fb-contrast" title="High contrast">Aa</button>
+        <span class="fb-sep"></span>
+        <button class="fb-btn fb-hl-toggle" title="Highlight (H)" aria-pressed="false"><i class="fa-solid fa-highlighter"></i></button>
+        <div class="fb-color-row" aria-label="Highlight colors">
+          ${this.config.highlightColors.map(c => `<button class="fb-color" style="--fb-color:${c}" title="${c}" aria-label="${c}" data-color="${c}"></button>`).join('')}
+        </div>
+        <button class="fb-btn fb-hl-clear" title="Clear selected highlight" aria-label="Clear selected highlight"><i class="fa-solid fa-eraser"></i></button>
+        <span class="fb-sep"></span>
+        <button class="fb-btn fb-tts-play" title="Read to me (R)" aria-label="Read to me"><i class="fa-solid fa-volume-high"></i></button>
+        <button class="fb-btn fb-tts-pause" title="Pause/Resume reading" aria-label="Pause or resume"><i class="fa-solid fa-pause"></i></button>
+        <button class="fb-btn fb-tts-stop" title="Stop reading" aria-label="Stop reading"><i class="fa-solid fa-stop"></i></button>
+        <div class="fb-tts">
+          <button class="fb-btn fb-tts-more" title="More TTS options" aria-haspopup="dialog" aria-expanded="false" aria-controls="fb-tts-panel">
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+          <div class="fb-tts-panel" id="fb-tts-panel" role="dialog" aria-label="Text-to-speech options">
+            <label class="fb-tts-field">
+              <span class="fb-tts-field-label">Voice</span>
+              <select class="fb-tts-voice"></select>
+            </label>
+            <label class="fb-tts-field fb-tts-lab">
+              <span class="fb-tts-field-label">Rate</span>
+              <input type="range" class="fb-tts-rate" min="0.5" max="2" step="0.1" value="${Number(this.config.rate ?? 1).toFixed(1)}">
+              <span class="fb-tts-val fb-tts-rate-val"></span>
+            </label>
+            <label class="fb-tts-field fb-tts-lab">
+              <span class="fb-tts-field-label">Pitch</span>
+              <input type="range" class="fb-tts-pitch" min="0" max="2" step="0.1" value="${Number(this.config.pitch ?? 1).toFixed(1)}">
+              <span class="fb-tts-val fb-tts-pitch-val"></span>
+            </label>
+          </div>
+        </div>
+        <div class="fb-stage" tabindex="0" aria-label="Flipbook pages">
+          <div class="fb-stack" aria-hidden="false"></div>
+        </div>`;
+    this.$stage = this.container.querySelector('.fb-stage');
+    this.$stack = this.container.querySelector('.fb-stack');
+    this._installTooltip();
+    this._buildSheets();
+    this._wireToolbar();
+    this._wireKeys();
+    this._enableHighlighting();
+    this._ttsBindControls();
+    this._autofit = this._autofit.bind(this); this._autofit();
+    window.addEventListener('resize', this._autofit);
+    window.addEventListener('orientationchange', this._autofit);
+    this._ttsUpdateButtons({ playing:false, paused:false });
+  }
+  /* Responsive autofit */
+  _autofit(){ if (this._userZoom) return; try{ const cs = getComputedStyle(this.container); const baseW = parseFloat(cs.getPropertyValue('--fb-w'))||800; const avail = this.container.clientWidth - 16; const scale = Math.max(0.5, Math.min(1, avail / baseW)); this._zoom = scale; this.container.style.setProperty('--fb-zoom', String(this._zoom)); }catch{} }
+  /* Build */
+  _getPages() { const base = Array.isArray(this.config.pages) ? this.config.pages.slice() : []; const persisted = this._loadPersisted() || this._persisted || []; return base.map((html, i) => (persisted[i] != null ? persisted[i] : html)); }
+  _sheetEl(sheetIndex, pages){ const leftIndex = sheetIndex*2; const rightIndex = leftIndex+1; const sheet = document.createElement('div'); sheet.className='fb-sheet'; sheet.dataset.sheetIndex = String(sheetIndex); const left = document.createElement('article'); left.className='fb-page fb-left'; left.innerHTML = pages[leftIndex] || ''; const right = document.createElement('article'); right.className='fb-page fb-right'; right.innerHTML = pages[rightIndex] || ''; sheet.addEventListener('focusin', (e)=>{ const mk = e.target.closest && e.target.closest('mark.fb-highlight'); if (mk) this._activeMark = mk; }); sheet.appendChild(left); sheet.appendChild(right); return sheet; }
+  _buildSheets(){ const pages = this._getPages(); const total = pages.length; this._sheetCount = Math.ceil(total/2); this.$stack.querySelectorAll('.fb-sheet, .fb-flip').forEach(n=>n.remove()); const current = this._sheetEl(this._sheetIndex, pages); current.classList.add('is-current'); this.$stack.appendChild(current); for (let i=this._sheetIndex-1;i>=0;i--){ const s = this._sheetEl(i,pages); s.classList.add('is-past'); this.$stack.insertBefore(s, this.$stack.firstChild); } for(let i=this._sheetIndex+1;i<this._sheetCount;i++){ const s = this._sheetEl(i,pages); s.classList.add('is-future'); this.$stack.appendChild(s); }
+    const leftIndex = this._sheetIndex*2; const rightIndex = leftIndex+1; this.$stage.setAttribute('aria-live','polite'); this.$stage.setAttribute('data-sheet', `${this._sheetIndex+1}/${this._sheetCount}`); this.$stage.setAttribute('data-pages', `${Math.min(total,leftIndex+1)}${rightIndex<total ? '–'+(rightIndex+1):''}/${total}`); this._updateProgressUI();
+    try{ const totalP = this._getPages().length; this.$stack.querySelectorAll('.fb-sheet').forEach(sh=>{ const si = parseInt(sh.dataset.sheetIndex||'0',10); const left=sh.querySelector('.fb-left'); const right=sh.querySelector('.fb-right'); const lnum = si*2+1; const rnum = si*2+2; if (left) left.setAttribute('data-page-num', String(lnum)); if (right && rnum<=totalP) right.setAttribute('data-page-num', String(rnum)); }); }catch{}
+  }
+  /* Turning with two-faced overlay */
+  _turn(dir){
+    const target = this._sheetIndex + dir;
+    if (target < 0 || target >= this._sheetCount) return Promise.resolve(false);
+    this._isTurning = true; this._tooltipHide(); this._ttsStop();
+    const pages = this._getPages();
+    const leftIndex = this._sheetIndex * 2; const rightIndex = leftIndex + 1;
+    const flip = document.createElement('div');
+    flip.className = dir > 0 ? 'fb-flip fb-flip-right' : 'fb-flip fb-flip-left';
+    const front = document.createElement('article'); front.className = 'fb-page fb-face front';
+    front.innerHTML = dir > 0 ? (pages[rightIndex] || '') : (pages[leftIndex] || '');
+    const back = document.createElement('article'); back.className = 'fb-page fb-face back';
+    const nextSheet = this._sheetIndex + dir; const nextLeft = nextSheet * 2; const nextRight = nextLeft + 1;
+    back.innerHTML = dir > 0 ? (pages[nextLeft] || '') : (pages[nextRight] || '');
+    flip.appendChild(front); flip.appendChild(back);
+    flip.style.zIndex = '7';
+    this.$stack.appendChild(flip);
+    flip.classList.add('is-turning', dir > 0 ? 'to-left' : 'to-right');
+    return new Promise(resolve => {
+      flip.addEventListener('animationend', () => {
+        flip.remove();
+        this._sheetIndex = target;
+        this._buildSheets();
+        this._isTurning = false;
+        resolve(true);
+      }, { once: true });
+    });
+  }
+  _animateToSheet(target){ const goal = Math.max(0, Math.min(this._sheetCount - 1, target || 0)); if (goal === this._sheetIndex) return Promise.resolve(); const step = goal > this._sheetIndex ? 1 : -1; const run = async () => { while (this._sheetIndex !== goal) { if (this._isTurning) { await new Promise(r => setTimeout(r, 16)); continue; } await this._turn(step); } }; return run(); }
+  /* Toolbar & keys */
+  _wireToolbar(){ const q = (sel)=> this.container.querySelector(sel);
+    q('.fb-prev').addEventListener('click', () => this.prev());
+    q('.fb-next').addEventListener('click', () => this.next());
+    q('.fb-zoom-in').addEventListener('click', () => { this._userZoom = true; this._setZoom(this._zoom + 0.1); });
+    q('.fb-zoom-out').addEventListener('click', () => { this._userZoom = true; this._setZoom(this._zoom - 0.1); });
+    q('.fb-contrast').addEventListener('click', () => this._toggleContrast());
+    const setColor = (c)=>{ this._hlColor = c; Array.from(this.container.querySelectorAll('.fb-color')).forEach(btn => btn.classList.toggle('is-current', btn.getAttribute('data-color') === c)); };
+    this.container.querySelectorAll('.fb-color').forEach(btn => btn.addEventListener('click', () => setColor(btn.getAttribute('data-color')))); setColor(this._hlColor);
+    q('.fb-hl-toggle').addEventListener('click', () => { const b = q('.fb-hl-toggle'); this._hlOn = !this._hlOn; b.setAttribute('aria-pressed', String(this._hlOn)); this.$stage.classList.toggle('fb-mode-highlight', this._hlOn); });
+    q('.fb-hl-clear').addEventListener('click', () => this._clearSelectedHighlight());
+    q('.fb-tts-play').addEventListener('click', () => this._ttsPlay());
+    q('.fb-tts-stop').addEventListener('click', () => this._ttsStop());
+    q('.fb-tts-pause').addEventListener('click', () => this._ttsTogglePause());
+    const ttsWrap = q('.fb-tts'); if (ttsWrap) { const moreBtn = ttsWrap.querySelector('.fb-tts-more'); const panel = ttsWrap.querySelector('.fb-tts-panel'); const closePanel = () => { ttsWrap.classList.remove('is-open'); moreBtn?.setAttribute('aria-expanded', 'false'); }; moreBtn?.addEventListener('click', (e) => { e.stopPropagation(); const open = ttsWrap.classList.toggle('is-open'); moreBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); if (open) panel?.focus(); }); document.addEventListener('click', (e) => { if (!ttsWrap.contains(e.target)) closePanel(); }); ttsWrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePanel(); }); }
+    const prog = q('.fb-progress'); if (prog){ const onJump = async (clientX, rect) => { const x = Math.max(rect.left, Math.min(clientX, rect.right)); const ratio = (x - rect.left) / rect.width; const targetSheet = Math.min(this._sheetCount - 1, Math.max(0, Math.round(ratio * (this._sheetCount - 1)))); await this._animateToSheet(targetSheet); }; prog.addEventListener('click', (e) => { const r = prog.getBoundingClientRect(); onJump(e.clientX, r); }); prog.addEventListener('keydown', (e) => { const k = (e.key || '').toLowerCase(); if (k === 'arrowright'){ e.preventDefault(); this.next(); } if (k === 'arrowleft' ){ e.preventDefault(); this.prev(); } if (k === 'home' ){ e.preventDefault(); this._animateToSheet(0); } if (k === 'end' ){ e.preventDefault(); this._animateToSheet(this._sheetCount - 1); } }); }
+    this._updateProgressUI();
+  }
+  _wireKeys(){ this.$stage.addEventListener('keydown',(e)=>{ const k=(e.key||'').toLowerCase(); if(k==='arrowright'){ e.preventDefault(); this.next(); } if(k==='arrowleft'){ e.preventDefault(); this.prev(); } if(k==='+'){ e.preventDefault(); this._userZoom=true; this._setZoom(this._zoom+0.1);} if(k==='-'){ e.preventDefault(); this._userZoom=true; this._setZoom(this._zoom-0.1);} if(k==='h'){ e.preventDefault(); this.container.querySelector('.fb-hl-toggle').click(); } if(k==='r'){ e.preventDefault(); this._ttsPlay(); } if(k==='escape'){ this._ttsStop(); } }); }
+  _setZoom(z){ this._zoom = Math.max(0.5, Math.min(2.0, z)); this.container.style.setProperty('--fb-zoom', String(this._zoom)); }
+  _toggleContrast(){ this._contrast = !this._contrast; this.container.classList.toggle('fb-contrast', this._contrast); }
+  _updateProgressUI(){ try{ const prog = this.container.querySelector('.fb-progress'); if(!prog) return; const bar = prog.querySelector('.fb-progress-bar'); const thumb = prog.querySelector('.fb-progress-thumb'); const txt = this.container.querySelector('.fb-progress-text'); const totalPages = this._getPages().length || 1; const currentPage = Math.min(totalPages, this._sheetIndex*2+1); const pct = totalPages>1 ? ((currentPage-1)/(totalPages-1))*100 : 0; bar.style.width=pct+'%'; thumb.style.left=pct+'%'; if(txt) txt.textContent = `${currentPage} / ${totalPages}`; prog.setAttribute('aria-valuemin','1'); prog.setAttribute('aria-valuemax', String(totalPages)); prog.setAttribute('aria-valuenow', String(currentPage)); }catch(e){} }
+  _goToSheet(idx){ const target = Math.max(0, Math.min(this._sheetCount-1, idx||0)); if (target === this._sheetIndex) return; this._sheetIndex = target; this._buildSheets(); }
+  /* Highlighting */
+  _enableHighlighting(){ const saveIfUseful = () => { try { const sel = window.getSelection(); if (!sel) return; if (sel.rangeCount > 0 && !sel.isCollapsed) { const r = sel.getRangeAt(0); if (this.$stage && this.$stage.contains(r.commonAncestorContainer)) { this._lastRange = r.cloneRange(); } } } catch {} }; this._lastRange = null; this._onSelChange = saveIfUseful; document.addEventListener('selectionchange', this._onSelChange); const makeMarkFromRange = (range) => { if (!range) return null; if (!this.$stage.contains(range.commonAncestorContainer)) return null; const mark = document.createElement('mark'); mark.className='fb-highlight'; mark.setAttribute('tabindex','0'); mark.style.setProperty('--hl', this._hlColor); try { range.surroundContents(mark); } catch { const frag = range.extractContents(); mark.appendChild(frag); range.insertNode(mark); } return mark; }; const finalizeNote = (mk) => { try { const note = window.prompt('Add a note (optional):',''); if (mk && note && note.trim()) mk.setAttribute('data-note', note.trim()); } catch {} }; const commitHighlight = () => { let sel = window.getSelection && window.getSelection(); let range = (sel && sel.rangeCount>0 && !sel.isCollapsed) ? sel.getRangeAt(0).cloneRange() : (this._lastRange ? this._lastRange.cloneRange() : null); if (!range) return; const page = this._closest(range.commonAncestorContainer, el => el.classList && el.classList.contains('fb-page')); if (!page || !this.$stage.contains(page)) return; const mk = makeMarkFromRange(range); if (!mk) return; this._activeMark = mk; finalizeNote(mk); this._persistPage(page); try { sel && sel.removeAllRanges(); } catch {} this._lastRange = null; }; const onMouseUp = () => { if (!this._hlOn) return; commitHighlight(); }; this.$stage.addEventListener('mouseup', onMouseUp); this.$stage.addEventListener('touchend', () => { if (!this._hlOn) return; setTimeout(commitHighlight, 60); }, { passive: true }); const tryShow = (t) => { const mk = t && t.closest ? t.closest('mark.fb-highlight[data-note]') : null; if(mk){ this._activeMark=mk; this._tooltipShow(mk);} }; this.$stage.addEventListener('click', (e)=> tryShow(e.target)); this.$stage.addEventListener('touchstart', (e)=>{ const touch = e.targetTouches && e.targetTouches[0]; const tgt = touch ? document.elementFromPoint(touch.clientX, touch.clientY) : e.target; tryShow(tgt); }, { passive:true }); document.addEventListener('pointerdown', (e)=>{ if(!this.container.contains(e.target)) this._tooltipHide(); }, { capture:true }); }
+  _clearSelectedHighlight(){ const sel = window.getSelection(); const current = this.$stack.querySelector('.fb-sheet.is-current'); if(!current) return; if (sel && !sel.isCollapsed){ const range = sel.getRangeAt(0); current.querySelectorAll('mark.fb-highlight').forEach(mk=>{ try{ if(range.intersectsNode(mk)){ const r2 = document.createRange(); r2.selectNode(mk); const containsWhole = (range.compareBoundaryPoints(Range.START_TO_START, r2) <= 0 && range.compareBoundaryPoints(Range.END_TO_END, r2) >= 0); if(containsWhole) this._unwrapMark(mk); } }catch{} }); this._persistCurrentSheet(); sel.removeAllRanges(); this._tooltipHide(); return; } const mk = this._activeMark && this.$stage.contains(this._activeMark) ? this._activeMark : null; if(mk){ const page = this._closest(mk, el=> el.classList && el.classList.contains('fb-page')); this._unwrapMark(mk); if(page) this._persistPage(page); this._tooltipHide(); } }
+  _unwrapMark(mk){ const p = mk.parentNode; if(!p) return; while(mk.firstChild) p.insertBefore(mk.firstChild, mk); p.removeChild(mk); }
+  /* Tooltip */
+  _installTooltip(){ this._tooltip = document.createElement('div'); this._tooltip.className='fb-tooltip'; this._tooltip.setAttribute('role','tooltip'); this._tooltip.hidden = true; this._tooltip.style.left='0px'; this._tooltip.style.top='0px'; this.$stage.appendChild(this._tooltip); this.$stage.addEventListener('pointerenter',(e)=>{ const mk = e.target.closest && e.target.closest('mark.fb-highlight[data-note]'); if(mk) this._tooltipShow(mk); }, true); this.$stage.addEventListener('pointerleave',()=>{ this._tooltipHide(); }, true); this.$stage.addEventListener('focusin',(e)=>{ const mk = e.target.closest && e.target.closest('mark.fb-highlight[data-note]'); if(mk) this._tooltipShow(mk); }); this.$stage.addEventListener('focusout',()=>{ this._tooltipHide(); }); }
+  _tooltipShow(mark){ const note = mark.getAttribute('data-note'); if(!note) return; this._tooltip.textContent = note; this._tooltip.hidden = false; this._tooltip.style.maxWidth = Math.floor(this.$stage.clientWidth * 0.9)+'px'; const stageRect = this.$stage.getBoundingClientRect(); const mr = mark.getBoundingClientRect(); const tr = this._tooltip.getBoundingClientRect(); const pad = 8; let x = mr.left - stageRect.left; let y = mr.top - stageRect.top - tr.height - 8; const maxX = stageRect.width - tr.width - pad; const maxY = stageRect.height - tr.height - pad; x = Math.max(pad, Math.min(x, maxX)); if (y < pad) { y = Math.min(mr.bottom - stageRect.top + 8, maxY); } this._tooltip.style.left = x+'px'; this._tooltip.style.top = y+'px'; }
+  _tooltipHide(){ if(this._tooltip) this._tooltip.hidden = true; }
+  /* Persistence */
+  _persistPage(pageEl){ const leftIndex = this._sheetIndex*2; const rightIndex = leftIndex+1; const current = this.$stack.querySelector('.fb-sheet.is-current'); const map = new Map(); if(current){ const [L,R] = current.querySelectorAll('.fb-page'); map.set(L,leftIndex); map.set(R,rightIndex);} const idx = map.get(pageEl); if (idx==null) return; const persisted = this._loadPersisted() || []; persisted[idx] = pageEl.innerHTML; this._savePersisted(persisted); }
+  _persistCurrentSheet(){ const current = this.$stack.querySelector('.fb-sheet.is-current'); if(!current) return; const [L,R] = current.querySelectorAll('.fb-page'); if(L) this._persistPage(L); if(R) this._persistPage(R); }
+  _loadPersisted(){ try{ const s = localStorage.getItem(this._persistNS); if(!s) return null; const obj = JSON.parse(s); return Array.isArray(obj?.pages) ? obj.pages : null; }catch{ return null; } }
+  _savePersisted(pages) {try {localStorage.setItem(this._persistNS, JSON.stringify({ pages }));this._persisted = pages;} catch {}}
+  /* TTS */
+  _ttsLoadPrefs(){ try{ const s = localStorage.getItem(this._persistNS+":tts"); return s ? JSON.parse(s) : null; }catch{ return null; } }
+  _ttsSavePrefs(){ try{ const v = { voice: this.config.voice||'', rate: Number(this.config.rate||1), pitch: Number(this.config.pitch||1) }; localStorage.setItem(this._persistNS+":tts", JSON.stringify(v)); }catch{} }
+  _ttsBindControls(){ const sel = this.container.querySelector('.fb-tts-voice'); const r = this.container.querySelector('.fb-tts-rate'); const p = this.container.querySelector('.fb-tts-pitch'); const rv = this.container.querySelector('.fb-tts-rate-val'); const pv = this.container.querySelector('.fb-tts-pitch-val'); const updateVals = ()=>{ if(rv) rv.textContent = Number(r.value).toFixed(1)+'x'; if(pv) pv.textContent = Number(p.value).toFixed(1); }; updateVals(); r.addEventListener('input', ()=>{ this.config.rate = Number(r.value); updateVals(); this._ttsSavePrefs(); }); p.addEventListener('input', ()=>{ this.config.pitch = Number(p.value); updateVals(); this._ttsSavePrefs(); }); const populate = ()=>{ try{ const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : []; const previous = sel.value; sel.innerHTML=''; voices.forEach(v=>{ const opt = document.createElement('option'); opt.value = v.name; opt.textContent = `${v.name} — ${v.lang}`; if((this.config.voice||'') === v.name) opt.selected = true; sel.appendChild(opt); }); if(!sel.value && previous) sel.value = previous; }catch{} }; sel.addEventListener('change', ()=>{ this.config.voice = sel.value; this._ttsSavePrefs(); }); try{ populate(); window.speechSynthesis && (window.speechSynthesis.onvoiceschanged = populate); }catch{} }
+  _ttsBuild(){ const current = this.$stack.querySelector('.fb-sheet.is-current'); if(!current) return { str:'', map:[], words:[] }; const pages = Array.from(current.querySelectorAll('.fb-page')); const words=[]; const map=[]; let text=''; const wrapNode = (node)=>{ if (node.nodeType===3){ const raw=node.nodeValue||''; if(!raw.trim()){ text+=raw; return; } const parts = raw.split(/(\s+)/); const frag = document.createDocumentFragment(); for(const part of parts){ if(!part) continue; if(/^\s+$/.test(part)){ frag.appendChild(document.createTextNode(part)); text+=part; continue;} const span=document.createElement('span'); span.className='fb-word'; span.textContent=part; const start=text.length; const end=start+part.length; words.push(span); map.push({ start,end, el: span}); text+=part; frag.appendChild(span);} node.parentNode.replaceChild(frag,node); return; } if (node.nodeType===1){ const tag=node.tagName.toLowerCase(); if(tag==='script'|| tag==='style') return; const kids=Array.from(node.childNodes); for(const k of kids) wrapNode(k); } }; for(const page of pages){ if(page.hasAttribute('data-tts-wrapped')){ const visit = (node) => { if (!node) return; if (node.nodeType === 3) { text += node.nodeValue || ''; return; } if (node.nodeType === 1) { const el = node; if (el.classList && el.classList.contains('fb-word')) { const part = el.textContent || ''; const start = text.length; const end = start + part.length; words.push(el); map.push({ start, end, el }); text += part; return; } const tag = el.tagName ? el.tagName.toLowerCase() : ''; if (tag === 'script' || tag === 'style') return; Array.from(el.childNodes).forEach(visit); } }; visit(page); } else { wrapNode(page); page.setAttribute('data-tts-wrapped','true'); } } return { str: text, map, words }; }
+  _ttsSetButtonsState(playing, paused){ const pauseBtn = this.container.querySelector('.fb-tts-pause'); const stopBtn = this.container.querySelector('.fb-tts-stop'); if (pauseBtn){ const icon = pauseBtn.querySelector('i'); if(paused || !playing){ icon.classList.remove('fa-pause'); icon.classList.add('fa-play'); pauseBtn.title='Resume reading'; pauseBtn.setAttribute('aria-label','Resume reading'); pauseBtn.disabled = !playing && !paused; } else { icon.classList.remove('fa-play'); icon.classList.add('fa-pause'); pauseBtn.title='Pause reading'; pauseBtn.setAttribute('aria-label','Pause reading'); pauseBtn.disabled = false; } } if (stopBtn){ stopBtn.disabled = !playing && !paused; } }
+  _ttsUpdateButtons({playing=false, paused=false}={}){ this._ttsSetButtonsState(playing, paused); }
+  _ttsSetReading(idx){ this._ttsClearReading(); const w = this._tts.words[idx]; if(!w) return; w.classList.add('is-reading'); try{ w.scrollIntoView({ block:'nearest', inline:'nearest' }); }catch{} }
+  _ttsClearReading(){ this.$stack.querySelectorAll('.fb-word.is-reading').forEach(el=> el.classList.remove('is-reading')); }
+  _ttsPlay(){ if (!('speechSynthesis' in window)) { alert('Text-to-speech not supported in this browser.'); return; } if (this._tts.playing && !this._tts.paused) return; const data = this._ttsBuild(); if(!data.str.trim()) return; this._tts.str = data.str; this._tts.map = data.map; this._tts.words = data.words; this._tts.lastChar = 0; const starts = this._tts.map.map(m=>m.start); const idxForChar = (i)=>{ let lo=0, hi=starts.length-1, ans=0; while(lo<=hi){ const mid=(lo+hi)>>1; if(starts[mid] <= i){ ans=mid; lo=mid+1;} else hi=mid-1; } while(ans+1 < this._tts.map.length && i >= this._tts.map[ans+1].start && i < this._tts.map[ans+1].end) ans++; return ans; }; const u = new SpeechSynthesisUtterance(data.str); try{ u.lang = document.documentElement.lang || navigator.language || 'en-US'; u.rate = Number(this.config.rate)||1.0; u.pitch = Number(this.config.pitch)||1.0; const wanted = (this.config.voice||'').trim(); if (wanted){ const applyVoice = ()=>{ const v = speechSynthesis.getVoices().find(v=> v.name === wanted); if (v) u.voice = v; }; applyVoice(); speechSynthesis.onvoiceschanged = applyVoice; } }catch{} const myId = ++this._tts.id; u.onstart = ()=>{ if (myId !== this._tts.id) return; this._tts.playing = true; this._tts.paused = false; this._ttsUpdateButtons({playing:true, paused:false}); }; u.onend = ()=>{ if (myId !== this._tts.id) return; this._tts.playing = false; this._tts.paused = false; this._ttsClearReading(); this._tts.lastChar = 0; this._ttsUpdateButtons({playing:false, paused:false}); }; u.onpause = ()=>{ if (myId !== this._tts.id) return; this._tts.playing = true; this._tts.paused = true; this._ttsUpdateButtons({playing:true, paused:true}); }; u.onresume = ()=>{ if (myId !== this._tts.id) return; this._tts.playing = true; this._tts.paused = false; this._ttsUpdateButtons({playing:true, paused:false}); }; u.onboundary = (ev)=>{ if (myId !== this._tts.id) return; const i = (typeof ev.charIndex === 'number' ? ev.charIndex : this._tts.lastChar); this._tts.lastChar = i; this._ttsSetReading(idxForChar(i)); }; try{ speechSynthesis.cancel(); this._ttsUpdateButtons({playing:true, paused:false}); speechSynthesis.speak(u); this._tts.utter = u; }catch{} }
+  _ttsTogglePause(){ try{ if(!('speechSynthesis' in window)) return; if(!this._tts.utter) return; if (speechSynthesis.paused){ speechSynthesis.resume(); this._tts.paused = false; this._ttsUpdateButtons({playing:true, paused:false}); } else { speechSynthesis.pause(); this._tts.paused = true; this._ttsUpdateButtons({playing:true, paused:true}); } }catch{} }
+  _ttsStop(){ try{ this._tts.id++; speechSynthesis.cancel(); }catch{} this._tts.playing=false; this._tts.paused=false; this._tts.utter=null; this._ttsClearReading(); this._tts.lastChar = 0; this._ttsUpdateButtons({playing:false, paused:false}); }
+  /* Utils */
+  _closest(node, predicate){ let n = (node && node.nodeType === 3) ? node.parentNode : node; while(n){ if(predicate(n)) return n; n = n.parentNode; } return null; }
+}
+
+
+
+
 //Finalize the URL
 finalizeURL();

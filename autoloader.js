@@ -1,5 +1,5 @@
 import { Extension, Config, Styles } from "./js/mediaviewer-extension.js";
-import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel, BeforeAndAfter} from "./js/mediaviewer.js";
+import {startup, VideoPlayer, AudioPlayer, Gallery, Carousel, BeforeAndAfter, Hero, Timeline, Flipbook} from "./js/mediaviewer.js";
 import { uniqueid, parseBoolean } from "./js/mediaviewer-tools.js";
 startup();
 export const autoloader = class extends Extension{
@@ -11,8 +11,15 @@ export const autoloader = class extends Extension{
 
 window.addEventListener('load',()=>{
 
-    let gallery, carousel, video_player, audio_player, before_after;
-    document.querySelectorAll('[media-video-player], [media-audio-player], [media-gallery], [media-carousel], [media-before-after]')
+    let gallery, carousel, video_player, audio_player, before_after, hero, timeline, flipbook;
+    document.querySelectorAll(`[media-video-player], 
+        [media-audio-player], 
+        [media-gallery], 
+        [media-carousel], 
+        [media-before-after], 
+        [media-hero], 
+        [media-timeline],
+        [media-flipbook]`)
     .forEach(e=>{
         if(!e.id) e.id = uniqueid();
         if(e.hasAttribute('media-carousel')){
@@ -210,7 +217,8 @@ window.addEventListener('load',()=>{
             before_after = new autoloader(`[id="${e.id}"]`,{
                 BeforeAndAfter:{
                     before: e.getAttribute('before') || (e.querySelectorAll('img')[0] ? e.querySelectorAll('img')[0].getAttribute('src') : ''),
-                    after: e.getAttribute('after') || (e.querySelectorAll('img')[1] ? e.querySelectorAll('img')[1].getAttribute('src') : '')
+                    after: e.getAttribute('after') || (e.querySelectorAll('img')[1] ? e.querySelectorAll('img')[1].getAttribute('src') : ''),
+                    orientation: (e.getAttribute('data-orientation')?.toLocaleLowerCase() === 'vertical' ? 'vertical' : 'horizontal'),
                 }
             },{
                 BeforeAndAfter: (
@@ -233,9 +241,132 @@ window.addEventListener('load',()=>{
             e.removeAttribute('data-before');
             e.removeAttribute('data-after');
             e.removeAttribute('data-styles');
-        }
-    });
+        }else if(e.hasAttribute('media-hero')){
+            hero = new autoloader(`[id="${e.id}"]`,{
+                Hero:{
+                    background: e.getAttribute('background') || (e.querySelector('img') ? e.querySelector('img').getAttribute('src') : ''),
+                    title: e.querySelector('h1')?.innerText || '',
+                    subtitle: e.querySelector('p')?.innerText || '',
+                    eyebrow: e.querySelector('span')?.innerText || '',
+                    tabs: Array.from(e.querySelectorAll('a'))?.map(a => ({
+                        label: a.innerText,
+                        href: a.getAttribute('href'),
+                        target: a.getAttribute('target') || '_self',
+                        variant: a.getAttribute('data-variant') || 'primary'
+                    })) ?? [],
+                    align: (e.getAttribute('data-align') ? e.getAttribute('data-align').toLocaleLowerCase() : 'left'),
+                    tabsPlacement: (e.getAttribute('data-tabs-placement') ? e.getAttribute('data-tabs-placement').toLocaleLowerCase() : 'bottom'),
+                    tabsVariant: (e.getAttribute('data-tabs-variant') ? e.getAttribute('data-tabs-variant').toLocaleLowerCase() : 'buttons'),
+                }
+            },{
+                Hero: (
+                    e.hasAttribute('data-styles')
+                        ? Object.fromEntries(
+                            e.getAttribute('data-styles')
+                                .split(';')
+                                .map(s => s.trim())
+                                .filter(Boolean)
+                                .map(pair => {
+                                    const [key, value] = pair.replace(/^https?:/i,'').split(':').map(x => x.trim());
+                                    return [key, value];
+                                })
+                        )
+                        : {}
+                )
+            })
+            hero.include(Hero);
+            hero.use(Hero).apply();
+            e.removeAttribute('data-before');
+            e.removeAttribute('data-after');
+            e.removeAttribute('data-styles');
+    } else if (e.hasAttribute('media-timeline')) {
+        timeline = new autoloader(`[id="${e.id}"]`, {
+            Timeline: {
+            orientation: (e.getAttribute('data-orientation')?.toLowerCase() === 'horizontal' ? 'horizontal' : 'vertical'),
+            alternate: (e.hasAttribute('data-alternate') ? parseBoolean(e.getAttribute('data-alternate'), true) : true),
+            invert: (e.hasAttribute('data-alt-invert') ? parseBoolean(e.getAttribute('data-alt-invert'), false) : false), // NEW
+            items: Array.from(e.querySelectorAll('timeline-item, li, .timeline-item')).map(n => ({
+                date:  n.getAttribute('data-date')  ?? '',
+                title: n.getAttribute('data-title') ?? n.querySelector('h4,h3,h2')?.innerText ?? '',
+                badge: n.getAttribute('data-badge') ?? '',
+                icon:  n.getAttribute('data-icon')  ?? '',
+                href:  n.getAttribute('data-href')  ?? n.querySelector('a')?.getAttribute('href') ?? '',
+                html:  n.innerHTML
+            }))
+            }
+        }, {
+            Timeline: (
+            e.hasAttribute('data-styles')
+                ? Object.fromEntries(
+                    e.getAttribute('data-styles')
+                    .split(';').map(s => s.trim()).filter(Boolean)
+                    .map(pair => {
+                        const [key, value] = pair.split(':').map(x => x.trim());
+                        return [key, value];
+                    })
+                )
+                : {}
+            )
+        });
 
-    
+        // Clear source children & apply as you already do
+        e.innerHTML = '';
+        timeline.include(Timeline);
+        timeline.use(Timeline).apply();
+
+        // Cleanup
+        e.removeAttribute('data-orientation');
+        e.removeAttribute('data-alternate');
+        e.removeAttribute('data-alt-invert'); // NEW
+        e.removeAttribute('data-styles');
+        }else if(e.hasAttribute('media-flipbook')){
+        // Collect pages: <page> elements, or fallback to each block-level child, or <img> as image pages
+        const pageNodes = e.querySelectorAll('page, .page, article, section, div, li, p, img');
+        const pages = Array.from(pageNodes).map(n => {
+            if (n.tagName.toLowerCase() === 'img') {
+            const alt = n.getAttribute('alt') ?? '';
+            return `<div class="fb-image-page"><img src="${n.getAttribute('src')}" alt="${alt}"/></div>`;
+            }
+            return `<div class="fb-text-page">${n.innerHTML}</div>`;
+        });
+
+        const paletteAttr = e.getAttribute('data-highlight-colors') || 'yellow,#ffad0d,#7bd389,#63cdda,#a29bfe,#ff6b6b,#ffd93d';
+        const palette = paletteAttr.split(',').map(c => c.trim()).filter(Boolean);
+
+        flipbook = new autoloader(`[id="${e.id}"]`,{
+            Flipbook:{
+            pages,
+            width: (e.getAttribute('data-width') || '800'),
+            height: (e.getAttribute('data-height') || '520'),
+            rtl: (e.getAttribute('data-rtl') ? parseBoolean(e.getAttribute('data-rtl')) : false),
+            voice: (e.getAttribute('data-voice') || ''),     // optional TTS voice name
+            rate: (e.getAttribute('data-rate') ? parseFloat(e.getAttribute('data-rate')) : 1.0),
+            pitch:(e.getAttribute('data-pitch')? parseFloat(e.getAttribute('data-pitch')): 1.0),
+            highlightColors: palette,
+            persistKey: (e.getAttribute('data-persist-key') || e.id) // localStorage key
+            }
+        },{
+            Flipbook: (
+            e.hasAttribute('data-styles')
+                ? Object.fromEntries(
+                    e.getAttribute('data-styles').split(';')
+                    .map(s => s.trim()).filter(Boolean)
+                    .map(pair => { const [key, value] = pair.split(':').map(x => x.trim()); return [key, value]; })
+                )
+                : {}
+            )
+        });
+        // Clear authoring children
+        e.innerHTML = '';
+        flipbook.include(Flipbook);
+        flipbook.use(Flipbook).apply();
+
+        // Cleanup data-attrs we consumed
+        ['data-width','data-height','data-rtl','data-voice','data-rate','data-pitch','data-highlight-colors','data-styles','data-persist-key']
+            .forEach(a => e.removeAttribute(a));
+        }
+
+
+    });
 
 });
