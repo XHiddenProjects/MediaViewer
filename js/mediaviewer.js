@@ -3097,7 +3097,7 @@ constructor(container, config = {}, styles = {}) {
       title: '',
       subtitle: '',
       description: '',
-      src: '',
+      background: '',
       alt: '',
       tabs: [],
       // --- NEW ---
@@ -3177,8 +3177,8 @@ constructor(container, config = {}, styles = {}) {
     const bottomBlock = (hasTabs && this.config.tabsPlacement !== 'top')    ? renderTabs() : '';
 
     // Background image (existing)
-    const bg = this.config.src
-        ? `<img src="${this.config.src}" alt="${this.config.alt ?? ''}" class="background" />`
+    const bg = this.config.background
+        ? `<img src="${this.config.background}" alt="${this.config.alt ?? ''}" class="background" />`
         : '';
 
     // Compose hero content
@@ -3458,11 +3458,67 @@ this.container.querySelectorAll('.timeline-item').forEach((el) => io.observe(el)
 
 
 export class Flipbook { 
-  /**
-   * Interactive, accessible flipbook/reader with page turning animation, zoom,
-   * high-contrast mode, text highlighting + sticky notes, and built-in
-   * text-to-speech (TTS) with voice/rate/pitch controls and local persistence.
-   */
+    /**
+     * Interactive, accessible flipbook/reader with realistic page‑turn animation,
+     * zoom, high‑contrast theme, text highlighting (with optional sticky notes),
+     * and built‑in text‑to‑speech (TTS) controls with local persistence.
+     *
+     * Requires `startup()` to be called once before instantiation so the library
+     * can inject CSS and set the "media-viewer-enabled" gate attribute.
+     *
+     * @constructor
+     * @param {string|HTMLElement} container
+     * Root element (or CSS selector) that will host the flipbook.
+     *
+     * @param {{
+     *   pages?: string[],
+     *   width?: number|string,
+     *   height?: number|string,
+     *   rtl?: boolean,
+     *   highlightColors?: string[],
+     *   voice?: string,
+     *   rate?: number,
+     *   pitch?: number,
+     *   persistKey?: string
+     * }} [config] Flipbook configurations
+     *
+     * @param {{
+     *   'bg'?: string,
+     *   'page-bg'?: string,
+     *   'shadow'?: string,
+     *   'accent'?: string,
+     *   'ink'?: string,
+     *   'toolbar-bg'?: string,
+     *   'toolbar-color'?: string,
+     *   'contrast-bg'?: string,
+     *   'contrast-ink'?: string,
+     *   'width'?: string|number,
+     *   'height'?: string|number
+     * }} [styles]
+     * Visual tokens mapped to CSS custom properties on the container as
+     * `--flipbook-<token>` (e.g., `{ 'accent': '#4badde' }` → `--flipbook-accent: #4badde`).
+     * Advanced animation-tuning variables used by the page‑turn (e.g.,
+     * `--flip-curl-color`, `--flip-shadow-color`, `--flip-shadow-color-min`,
+     * `--flip-bulge-scale`, `--flip-bulge-skew`) are *not* wired to `styles`;
+     * set them via CSS or `element.style.setProperty('--flip-…', value)` if needed.
+     *
+     * @example
+     * startup();
+     * const fb = new Flipbook('#book', {
+     *   pages: ['<h2>Cover</h2>', '<h2>Page 2</h2>', '<h2>Page 3</h2>', '<h2>Page 4</h2>'],
+     *   width: 900,
+     *   height: 600,
+     *   persistKey: 'demo-flipbook'
+     * }, {
+     *   'bg': '#f6f8fa',
+     *   'page-bg': '#fff',
+     *   'accent': '#4badde',
+     *   'toolbar-bg': '#fff',
+     *   'toolbar-color': '#0b0f14',
+     *   'contrast-bg': '#0b0f14',
+     *   'contrast-ink': '#fff'
+     * }).getInstance();
+     */
   constructor(container, config = {}, styles = {}){
     if (!document.documentElement.hasAttribute('media-viewer-enabled')) return; 
     this.container = (typeof container === 'string') ? document.querySelector(container) : container; 
