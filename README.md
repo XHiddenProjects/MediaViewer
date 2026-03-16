@@ -11,6 +11,9 @@ A web-friendly media viewing library that's good for your website for both PC/Ma
 * VideoPlayer
 * AudioPlayer
 * Before and After slider
+* Timeline
+* Hero banner
+* Flipbook
 
 ## Requirements
 These are requirements that will be injected into your website
