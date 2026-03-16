@@ -3356,11 +3356,11 @@ export class Timeline {
       : this.#parseChildItems(this.container);
 
     // Render
-    this.container.innerHTML = `
-      <span class="timeline-track" aria-hidden="true"></span>
-      <ol class="timeline-list" role="list">
+   this.container.innerHTML = `
+    <span class="timeline-track" aria-hidden="true"></span>
+    <ol class="timeline-list" role="list">
         ${items.map(it => this.#renderItem(it)).join('')}
-      </ol>
+    </ol>
     `;
 
     
